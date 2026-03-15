@@ -8,6 +8,7 @@ from pathlib import Path
 
 import voluptuous as vol
 
+import homeassistant.helpers.config_validation as cv
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -26,6 +27,7 @@ from .coordinator import TeslaSmartChargeCoordinator
 _LOGGER = logging.getLogger(__name__)
 _DEFAULT_DASHBOARD_FILENAME = "dashboards/tesla_smart_charge.yaml"
 _DASHBOARD_TEMPLATE_PATH = Path(__file__).parent / "dashboards" / "tesla_smart_charge.yaml"
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
