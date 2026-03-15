@@ -10,6 +10,12 @@ Custom integration Home Assistant to optimize Tesla charging from tariff slots.
 - Inputs exposed as entities (`number`, `switch`, `select`) for easy dashboard control.
 - Built-in service to install a Lovelace dashboard template.
 
+## Prerequisites
+
+- Home Assistant with the Tesla entities you want to control/map (SOC sensor, charging status, charger switch, charging power, charge limit, amps, etc.).
+- A tariff source that exposes upcoming prices (`Sensor Attribute`, `REST Endpoint`, or `Spot Raw` in this integration).
+- For dashboard templates using `custom:apexcharts-card`: install `ApexCharts Card` from HACS (`Frontend` category).
+
 ## Installation
 
 ### HACS (Custom repository)
