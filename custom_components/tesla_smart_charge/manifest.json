@@ -1,0 +1,10 @@
+{
+  "domain": "tesla_smart_charge",
+  "name": "Tesla Smart Charge",
+  "version": "1.0.0",
+  "documentation": "https://github.com/danbendavid/tesla_smart_charge",
+  "config_flow": true,
+  "iot_class": "local_polling",
+  "requirements": [],
+  "codeowners": []
+}

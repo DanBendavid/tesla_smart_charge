@@ -1,0 +1,121 @@
+title: Tesla Smart Charge
+views:
+  - title: Tesla Smart Charge
+    path: tesla-smart-charge
+    icon: mdi:ev-station
+    cards:
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Prix & slots optimises (24h)
+          show_states: false
+        graph_span: 24h
+        span:
+          start: hour
+        all_series_config:
+          stroke_width: 2
+        yaxis:
+          - id: price
+            min: 0.1
+            max: 0.4
+          - id: soc
+            opposite: true
+            min: 20
+            max: 100
+        series:
+          - entity: sensor.tesla_smart_charge_tariff_prices_15min
+            name: Tarif
+            type: line
+            color: "#4FC3F7"
+            show:
+              legend_value: false
+            yaxis_id: price
+            float_precision: 3
+            data_generator: >-
+              return (entity.attributes.prices || []).map((p) => [new
+              Date(p.start).getTime(), p.price]);
+          - entity: sensor.tesla_smart_charge_optimized_schedule
+            name: Slots Base
+            type: column
+            color: "#66BB6A"
+            show:
+              legend_value: false
+            yaxis_id: price
+            opacity: 0.35
+            data_generator: >-
+              return (entity.attributes.schedule || []).filter((s) => s.enabled &&
+              (s.stage || 'required') !== 'cheap_bonus').map((s) => [new
+              Date(s.start).getTime(), s.price]);
+          - entity: sensor.tesla_smart_charge_optimized_schedule
+            name: Slots Bonus
+            type: column
+            color: "#FFA726"
+            show:
+              legend_value: false
+            yaxis_id: price
+            opacity: 0.45
+            data_generator: >-
+              return (entity.attributes.schedule || []).filter((s) => s.enabled &&
+              (s.stage || 'required') === 'cheap_bonus').map((s) => [new
+              Date(s.start).getTime(), s.price]);
+          - entity: sensor.tesla_smart_charge_optimized_schedule
+            name: Batterie (%)
+            type: line
+            color: "#AB47BC"
+            show:
+              legend_value: false
+            yaxis_id: soc
+            float_precision: 1
+            data_generator: >-
+              return (entity.attributes.schedule || []).filter((s) => s.soc_end !== null
+              && s.soc_end !== undefined).map((s) => [new Date(s.end ||
+              s.start).getTime(), s.soc_end]);
+      - type: markdown
+        title: Timeline Charge
+        content: |-
+          {% set slots = state_attr('sensor.tesla_smart_charge_optimized_schedule', 'schedule') or [] %}
+          {% set enabled = slots | selectattr('enabled', 'eq', true) | sort(attribute='start') | list %}
+          {% if enabled | count == 0 %}
+          Aucun slot de charge active.
+          {% else %}
+          {% set ns = namespace(groups=[], cur=None) %}
+          {% for s in enabled %}
+          {% set t = 'Bonus' if s.stage|default('required') == 'cheap_bonus' else 'Base' %}
+          {% if ns.cur is none %}
+          {% set ns.cur = {'start': s.start, 'end': s.end, 'prices': [s.price|float(0)], 'type': t} %}
+          {% elif s.start == ns.cur.end and t == ns.cur.type %}
+          {% set ns.cur = {'start': ns.cur.start, 'end': s.end, 'prices': ns.cur.prices + [s.price|float(0)], 'type': ns.cur.type} %}
+          {% else %}
+          {% set ns.groups = ns.groups + [ns.cur] %}
+          {% set ns.cur = {'start': s.start, 'end': s.end, 'prices': [s.price|float(0)], 'type': t} %}
+          {% endif %}
+          {% endfor %}
+          {% if ns.cur is not none %}{% set ns.groups = ns.groups + [ns.cur] %}{% endif %}
+          | Debut | Fin | Prix moyen (EUR/kWh) | Slots | Type |
+          |---|---|---:|---:|---|
+          {% for g in ns.groups[:16] %}
+          | {{ as_local(as_datetime(g.start)).strftime('%d/%m %H:%M') }} | {{ as_local(as_datetime(g.end)).strftime('%H:%M') }} | {{ '%.3f'|format((g.prices | sum) / (g.prices | count)) }} | {{ g.prices | count }} | {{ g.type }} |
+          {% endfor %}
+          {% endif %}
+      - type: entities
+        title: Capteurs
+        show_header_toggle: false
+        entities:
+          - entity: sensor.tesla_smart_charge_cheapest_next_slot
+            name: Cheapest Next Slot
+          - entity: sensor.tesla_smart_charge_estimated_distance_after_charge
+            name: Estimated Distance After Charge
+          - entity: sensor.tesla_smart_charge_optimized_cost
+            name: Optimized Cost
+          - entity: sensor.tesla_smart_charge_optimized_end_time
+            name: Optimized End Time
+          - entity: sensor.tesla_smart_charge_optimized_energy
+            name: Optimized Energy
+          - entity: sensor.tesla_smart_charge_optimized_schedule
+            name: Optimized Schedule
+          - entity: sensor.tesla_smart_charge_optimized_start_time
+            name: Optimized Start Time
+          - entity: sensor.tesla_smart_charge_remaining_energy_needed
+            name: Remaining Energy Needed
+          - entity: sensor.tesla_smart_charge_tariff_prices_15min
+            name: Tariff Prices 15min

@@ -1,0 +1,56 @@
+{
+  "config": {
+    "flow_title": "Tesla Smart Charge",
+    "step": {
+      "user": {
+        "title": "Tesla entity mapping",
+        "description": "Select existing Tesla entities to control.",
+        "data": {
+          "battery_sensor": "Battery SOC sensor",
+          "charging_sensor": "Charging state",
+          "charger_switch": "Charger switch",
+          "charger_power_sensor": "Charger power sensor",
+          "charge_limit_number": "Charge limit number",
+          "charging_amps_number": "Charging amps number",
+          "range_sensor": "Range sensor",
+          "time_charge_complete_sensor": "Time charge complete sensor"
+        }
+      },
+      "tariff": {
+        "title": "Tariff source",
+        "data": {
+          "tariff_source": "Tariff source"
+        }
+      },
+      "tariff_sensor": {
+        "title": "Tariff sensor",
+        "description": "Provide the sensor and attribute that contains 15-minute prices.",
+        "data": {
+          "tariff_sensor": "Tariff sensor",
+          "tariff_attribute": "Attribute name"
+        }
+      },
+      "tariff_rest": {
+        "title": "Tariff REST endpoint",
+        "description": "Provide a URL that returns a JSON list of price slots.",
+        "data": {
+          "tariff_rest_url": "REST URL",
+          "tariff_rest_headers": "Headers (JSON)",
+          "tariff_rest_json_path": "JSON path"
+        }
+      },
+      "constants": {
+        "title": "Vehicle constants",
+        "description": "Typical values: battery 50-100 kWh, efficiency 140-220 Wh/km, home charging power 3-7 kW.",
+        "data": {
+          "battery_capacity_kwh": "Battery usable capacity (kWh, typical 50-100)",
+          "vehicle_efficiency_wh_per_km": "Vehicle efficiency (Wh/km, typical 140-220)",
+          "max_charging_power_kw": "Max charging power (kW, typical home 3-7)"
+        }
+      }
+    },
+    "error": {
+      "invalid_headers": "Headers must be valid JSON."
+    }
+  }
+}

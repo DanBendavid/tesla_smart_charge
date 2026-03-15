@@ -1,0 +1,24 @@
+reoptimize:
+  name: Re-optimize schedule
+  description: Force an immediate re-optimization and refresh.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry id to target a single instance.
+      example: "abcd1234"
+apply_control:
+  name: Apply control
+  description: Apply the current optimized schedule to the charger switch now.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry id to target a single instance.
+      example: "abcd1234"
+install_dashboard_template:
+  name: Install dashboard template
+  description: Copy the packaged Lovelace dashboard YAML to your /config folder.
+  fields:
+    filename:
+      name: Target filename
+      description: Relative path under /config where the dashboard YAML is written.
+      example: "dashboards/tesla_smart_charge.yaml"
