@@ -4,8 +4,8 @@
   "codeowners": ["@DanBendavid"],
   "config_flow": true,
   "documentation": "https://github.com/DanBendavid/tesla_smart_charge",
-  "issue_tracker": "https://github.com/DanBendavid/tesla_smart_charge/issues",
   "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/DanBendavid/tesla_smart_charge/issues",
   "requirements": [],
   "version": "1.0.0"
 }
