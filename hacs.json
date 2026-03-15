@@ -1,0 +1,7 @@
+{
+  "name": "Tesla Smart Charge",
+  "content_in_root": false,
+  "domains": ["tesla_smart_charge"],
+  "homeassistant": "2024.1.0",
+  "render_readme": true
+}
