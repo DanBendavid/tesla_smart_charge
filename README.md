@@ -2,6 +2,11 @@
 
 Custom integration Home Assistant to optimize Tesla charging from tariff slots.
 
+## About
+
+Tesla Smart Charge is a Home Assistant custom integration that schedules Tesla charging on the cheapest tariff periods while honoring your readiness target (`Minimum SOC By Ready Time` + `Ready By Hour`).  
+It also supports optional low-price bonus charging (`SOC If Cheap`) and provides dashboard-friendly sensors/services for monitoring and control.
+
 ## Features
 
 - Automatic optimization of charging slots based on price.
