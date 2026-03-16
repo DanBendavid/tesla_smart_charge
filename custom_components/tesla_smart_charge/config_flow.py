@@ -6,9 +6,9 @@ import json
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
-from homeassistant.helpers import entity_registry as er, selector
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_BATTERY_CAPACITY,
@@ -38,7 +38,10 @@ from .const import (
 )
 
 _ENTITY_HINTS: dict[str, tuple[str, tuple[str, ...]]] = {
-    CONF_BATTERY_SENSOR: ("sensor", ("battery", "usable_battery_level", "battery_level")),
+    CONF_BATTERY_SENSOR: (
+        "sensor",
+        ("battery", "usable_battery_level", "battery_level"),
+    ),
     CONF_CHARGING_SENSOR: ("binary_sensor", ("charging", "charger")),
     CONF_CHARGER_SWITCH: ("switch", ("charger", "charge")),
     CONF_CHARGER_POWER_SENSOR: ("sensor", ("charger_power", "charging_power")),
@@ -55,7 +58,7 @@ _ENTITY_HINTS: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
     CONF_SCHEDULED_CHARGING_SENSOR: (
         "binary_sensor",
-        ("scheduled_charging", "charge_schedule", "scheduled_departure", "departure"),
+        ("scheduled_charging", "charge_schedule"),
     ),
 }
 
@@ -89,11 +92,13 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             selector_config = selector.EntitySelectorConfig(domain=entity_domain)
             default = defaults.get(key)
             if default:
-                schema_fields[vol.Required(key, default=default)] = selector.EntitySelector(
-                    selector_config
+                schema_fields[vol.Required(key, default=default)] = (
+                    selector.EntitySelector(selector_config)
                 )
             else:
-                schema_fields[vol.Required(key)] = selector.EntitySelector(selector_config)
+                schema_fields[vol.Required(key)] = selector.EntitySelector(
+                    selector_config
+                )
 
         schema = vol.Schema(schema_fields)
 
@@ -162,7 +167,9 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_TARIFF_SOURCE, default=TARIFF_SOURCE_SENSOR): selector.SelectSelector(
+                vol.Required(
+                    CONF_TARIFF_SOURCE, default=TARIFF_SOURCE_SENSOR
+                ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
                             {
@@ -201,7 +208,9 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_TARIFF_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor")
                 ),
-                vol.Required(CONF_TARIFF_ATTRIBUTE, default="prices"): selector.TextSelector(),
+                vol.Required(
+                    CONF_TARIFF_ATTRIBUTE, default="prices"
+                ): selector.TextSelector(),
             }
         )
 
@@ -252,7 +261,9 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_BATTERY_CAPACITY, default=75.0): selector.NumberSelector(
+                vol.Required(
+                    CONF_BATTERY_CAPACITY, default=75.0
+                ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=1,
                         max=200,
@@ -261,7 +272,9 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode="box",
                     )
                 ),
-                vol.Required(CONF_VEHICLE_EFFICIENCY, default=180.0): selector.NumberSelector(
+                vol.Required(
+                    CONF_VEHICLE_EFFICIENCY, default=180.0
+                ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=50,
                         max=400,
@@ -270,7 +283,9 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode="box",
                     )
                 ),
-                vol.Required(CONF_MAX_CHARGING_POWER, default=7.0): selector.NumberSelector(
+                vol.Required(
+                    CONF_MAX_CHARGING_POWER, default=3.0
+                ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=1,
                         max=50,
