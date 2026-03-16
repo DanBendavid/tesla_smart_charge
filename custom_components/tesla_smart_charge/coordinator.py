@@ -847,7 +847,8 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
                 merged.setdefault(slot.start, slot)
 
         slots = sorted(merged.values(), key=lambda slot: slot.start)
-        return [slot for slot in slots if slot.start >= now and slot.start < horizon_end]
+        # Keep the in-progress slot (end > now) so control can start charging immediately.
+        return [slot for slot in slots if slot.end > now and slot.start < horizon_end]
 
     async def _async_fetch_tariff_from_spot_tomorrow(self) -> list[TariffSlot]:
         """Backward-compatible alias to raw rolling source."""
