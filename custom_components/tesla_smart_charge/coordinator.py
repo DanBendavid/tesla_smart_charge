@@ -599,7 +599,7 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
     def _slots_until_ready_deadline(
         self, tariff_slots: list[TariffSlot], now: datetime
     ) -> list[TariffSlot]:
-        """Return slots between now and the next-day ready deadline."""
+        """Return slots between now and the effective ready deadline (today or tomorrow)."""
 
         deadline = self._next_ready_deadline(now)
         future_slots = sorted(
@@ -609,17 +609,20 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
         return [slot for slot in future_slots if slot.end <= deadline]
 
     def _next_ready_deadline(self, now: datetime) -> datetime:
-        """Return next-day deadline at configured ready hour (local time)."""
+        """Return ready deadline at configured hour for today, else tomorrow (local time)."""
 
         local_now = dt_util.as_local(now)
         ready_hour = int(_safe_float(self.inputs.ready_by_hour) or DEFAULT_READY_BY_HOUR)
         ready_hour = max(0, min(23, ready_hour))
-        return (local_now + timedelta(days=1)).replace(
+        today_deadline = local_now.replace(
             hour=ready_hour,
             minute=0,
             second=0,
             microsecond=0,
         )
+        if local_now < today_deadline:
+            return today_deadline
+        return today_deadline + timedelta(days=1)
 
     def _calculate_bonus_energy_kwh(
         self, vehicle_state: TeslaVehicleState, required_energy_kwh: float
