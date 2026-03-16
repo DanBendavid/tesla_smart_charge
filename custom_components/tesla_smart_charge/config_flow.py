@@ -22,6 +22,7 @@ from .const import (
     CONF_CHARGING_AMPS_NUMBER,
     CONF_CHARGING_SENSOR,
     CONF_EXISTING_DASHBOARD_FILENAME,
+    CONF_EXISTING_DASHBOARD_URL_PATH,
     CONF_INSTALL_DASHBOARD_ON_SETUP,
     CONF_MAX_CHARGING_POWER,
     CONF_RANGE_SENSOR,
@@ -66,6 +67,9 @@ _ENTITY_HINTS: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
 }
 _LOVELACE_DATA_KEY = "lovelace"
+_DASHBOARD_TARGET_YAML_PREFIX = "yaml:"
+_DASHBOARD_TARGET_STORAGE_PREFIX = "storage:"
+_DASHBOARD_TARGET_STORAGE_DEFAULT = "__default__"
 
 
 class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -267,10 +271,12 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not install_dashboard:
                 self._data[CONF_ADD_TO_EXISTING_DASHBOARD] = False
                 self._data.pop(CONF_EXISTING_DASHBOARD_FILENAME, None)
+                self._data.pop(CONF_EXISTING_DASHBOARD_URL_PATH, None)
                 return self.async_create_entry(title="Tesla Smart Charge", data=self._data)
             if install_dashboard and add_to_existing:
                 return await self.async_step_existing_dashboard()
             self._data.pop(CONF_EXISTING_DASHBOARD_FILENAME, None)
+            self._data.pop(CONF_EXISTING_DASHBOARD_URL_PATH, None)
             return self.async_create_entry(title="Tesla Smart Charge", data=self._data)
 
         schema = vol.Schema(
@@ -327,29 +333,44 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            filename = str(
-                user_input[CONF_EXISTING_DASHBOARD_FILENAME]
-            ).strip()
-            if not filename:
+            selection = str(user_input[CONF_EXISTING_DASHBOARD_FILENAME]).strip()
+            if not selection:
                 errors[CONF_EXISTING_DASHBOARD_FILENAME] = "empty_dashboard_filename"
             else:
-                self._data[CONF_EXISTING_DASHBOARD_FILENAME] = filename
+                target_type, target_value = self._parse_dashboard_target(selection)
+                if not target_value:
+                    errors[CONF_EXISTING_DASHBOARD_FILENAME] = "empty_dashboard_filename"
+                elif target_type == "storage":
+                    self._data[CONF_EXISTING_DASHBOARD_URL_PATH] = target_value
+                    self._data.pop(CONF_EXISTING_DASHBOARD_FILENAME, None)
+                else:
+                    self._data[CONF_EXISTING_DASHBOARD_FILENAME] = target_value
+                    self._data.pop(CONF_EXISTING_DASHBOARD_URL_PATH, None)
+            if not errors:
                 return self.async_create_entry(title="Tesla Smart Charge", data=self._data)
 
-        default_filename = str(
+        default_selection = str(
             self._data.get(CONF_EXISTING_DASHBOARD_FILENAME, "ui-lovelace.yaml")
         ).strip()
-        options = self._yaml_dashboard_filename_options()
+        if CONF_EXISTING_DASHBOARD_URL_PATH in self._data:
+            stored_url_path = str(self._data[CONF_EXISTING_DASHBOARD_URL_PATH]).strip()
+            default_selection = f"{_DASHBOARD_TARGET_STORAGE_PREFIX}{stored_url_path}"
+
+        options = self._existing_dashboard_options()
 
         if options:
             option_values = [str(option["value"]) for option in options]
-            if default_filename not in option_values:
-                default_filename = option_values[0]
+            if default_selection not in option_values:
+                yaml_default = f"{_DASHBOARD_TARGET_YAML_PREFIX}{default_selection}"
+                if yaml_default in option_values:
+                    default_selection = yaml_default
+                else:
+                    default_selection = option_values[0]
             schema = vol.Schema(
                 {
                     vol.Required(
                         CONF_EXISTING_DASHBOARD_FILENAME,
-                        default=default_filename,
+                        default=default_selection,
                     ): selector.SelectSelector(
                         selector.SelectSelectorConfig(options=options)
                     ),
@@ -360,7 +381,7 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(
                         CONF_EXISTING_DASHBOARD_FILENAME,
-                        default=default_filename,
+                        default=default_selection,
                     ): selector.TextSelector(),
                 }
             )
@@ -369,24 +390,19 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="existing_dashboard", data_schema=schema, errors=errors
         )
 
-    def _yaml_dashboard_filename_options(self) -> list[dict[str, str]]:
-        """Return YAML dashboard filenames currently known by Lovelace."""
+    def _existing_dashboard_options(self) -> list[dict[str, str]]:
+        """Return dashboard selection options known by Lovelace."""
 
         lovelace_data = self.hass.data.get(_LOVELACE_DATA_KEY)
         dashboards = getattr(lovelace_data, "dashboards", None)
         if not isinstance(dashboards, dict):
             return []
 
-        options_by_filename: dict[str, str] = {}
+        options_by_value: dict[str, str] = {}
         for url_path, lovelace_config in dashboards.items():
             config = getattr(lovelace_config, "config", None)
             if not isinstance(config, dict):
                 continue
-
-            filename = config.get(CONF_FILENAME)
-            if not isinstance(filename, str) or not filename.strip():
-                continue
-            filename = filename.strip()
 
             raw_title = config.get("title")
             if isinstance(raw_title, str) and raw_title.strip():
@@ -396,14 +412,48 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 title = "Overview"
 
-            options_by_filename.setdefault(filename, f"{title} ({filename})")
+            filename = config.get(CONF_FILENAME)
+            if isinstance(filename, str) and filename.strip():
+                filename = filename.strip()
+                value = f"{_DASHBOARD_TARGET_YAML_PREFIX}{filename}"
+                label = f"{title} (YAML: {filename})"
+                options_by_value.setdefault(value, label)
+                continue
 
-        if not options_by_filename:
+            if url_path is None:
+                storage_path = _DASHBOARD_TARGET_STORAGE_DEFAULT
+                sidebar_path = "/"
+            else:
+                storage_path = str(url_path).strip()
+                if not storage_path:
+                    continue
+                sidebar_path = f"/{storage_path}"
+
+            value = f"{_DASHBOARD_TARGET_STORAGE_PREFIX}{storage_path}"
+            label = f"{title} (Storage: {sidebar_path})"
+            options_by_value.setdefault(value, label)
+
+        if not options_by_value:
             return []
 
         return [
-            {"value": filename, "label": label}
-            for filename, label in sorted(
-                options_by_filename.items(), key=lambda item: item[1].lower()
+            {"value": value, "label": label}
+            for value, label in sorted(
+                options_by_value.items(), key=lambda item: item[1].lower()
             )
         ]
+
+    def _parse_dashboard_target(self, selection: str) -> tuple[str, str]:
+        """Decode dashboard target from flow selection value."""
+
+        if selection.startswith(_DASHBOARD_TARGET_YAML_PREFIX):
+            filename = selection[len(_DASHBOARD_TARGET_YAML_PREFIX) :].strip()
+            return "yaml", filename
+
+        if selection.startswith(_DASHBOARD_TARGET_STORAGE_PREFIX):
+            storage_path = selection[len(_DASHBOARD_TARGET_STORAGE_PREFIX) :].strip()
+            if not storage_path:
+                return "storage", _DASHBOARD_TARGET_STORAGE_DEFAULT
+            return "storage", storage_path
+
+        return "yaml", selection

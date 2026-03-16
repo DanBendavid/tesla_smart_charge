@@ -53,10 +53,10 @@
         }
       },
       "existing_dashboard": {
-        "title": "Existing dashboard file",
-        "description": "Select a YAML dashboard filename where the Tesla view should be added. If none is listed, enter it manually.",
+        "title": "Existing dashboard",
+        "description": "Select a dashboard where the Smart Charge view should be added. If no dashboard is listed, enter a YAML filename manually.",
         "data": {
-          "existing_dashboard_filename": "Existing dashboard filename"
+          "existing_dashboard_filename": "Existing dashboard"
         }
       }
     },

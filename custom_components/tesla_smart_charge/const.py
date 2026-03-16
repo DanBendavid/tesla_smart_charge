@@ -18,6 +18,7 @@ CONF_SCHEDULED_CHARGING_SENSOR = "scheduled_charging_sensor"
 CONF_INSTALL_DASHBOARD_ON_SETUP = "install_dashboard_on_setup"
 CONF_ADD_TO_EXISTING_DASHBOARD = "add_to_existing_dashboard"
 CONF_EXISTING_DASHBOARD_FILENAME = "existing_dashboard_filename"
+CONF_EXISTING_DASHBOARD_URL_PATH = "existing_dashboard_url_path"
 
 # Tariff configuration.
 CONF_TARIFF_SOURCE = "tariff_source"

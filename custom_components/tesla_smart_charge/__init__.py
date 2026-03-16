@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
+from typing import Any
 
 import voluptuous as vol
 import yaml
@@ -20,6 +21,7 @@ from .const import (
     ATTR_ENTRY_ID,
     CONF_ADD_TO_EXISTING_DASHBOARD,
     CONF_EXISTING_DASHBOARD_FILENAME,
+    CONF_EXISTING_DASHBOARD_URL_PATH,
     CONF_INSTALL_DASHBOARD_ON_SETUP,
     DOMAIN,
     PLATFORMS,
@@ -36,6 +38,8 @@ _SMART_CHARGE_VIEW_TITLE = "Smart Charge"
 _SMART_CHARGE_VIEW_PATH = "smart-charge"
 _LEGACY_SMART_CHARGE_VIEW_TITLE = "Tesla Smart Charge"
 _LEGACY_SMART_CHARGE_VIEW_PATH = "tesla-smart-charge"
+_LOVELACE_DATA_KEY = "lovelace"
+_DASHBOARD_TARGET_STORAGE_DEFAULT = "__default__"
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
@@ -99,11 +103,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         existing_dashboard_filename = str(
             entry.data.get(CONF_EXISTING_DASHBOARD_FILENAME, "")
         ).strip()
-        if add_to_existing or existing_dashboard_filename:
-            existing_dashboard_filename = existing_dashboard_filename or "ui-lovelace.yaml"
-            installed = await _async_add_template_view_to_existing_dashboard(
-                hass, existing_dashboard_filename
-            )
+        existing_dashboard_url_path = str(
+            entry.data.get(CONF_EXISTING_DASHBOARD_URL_PATH, "")
+        ).strip()
+        if add_to_existing or existing_dashboard_filename or existing_dashboard_url_path:
+            if existing_dashboard_url_path:
+                installed = await _async_add_template_view_to_storage_dashboard(
+                    hass, existing_dashboard_url_path
+                )
+            else:
+                existing_dashboard_filename = existing_dashboard_filename or "ui-lovelace.yaml"
+                installed = await _async_add_template_view_to_existing_dashboard(
+                    hass, existing_dashboard_filename
+                )
         else:
             installed = await _async_install_dashboard_template(
                 hass, _DEFAULT_DASHBOARD_FILENAME
@@ -215,6 +227,170 @@ async def _async_install_dashboard_template(hass: HomeAssistant, filename: str) 
     return True
 
 
+def _load_template_views() -> list[dict[str, Any]]:
+    """Load Smart Charge template views from the packaged dashboard file."""
+
+    if not _DASHBOARD_TEMPLATE_PATH.exists():
+        raise FileNotFoundError(_DASHBOARD_TEMPLATE_PATH)
+
+    template_content = _DASHBOARD_TEMPLATE_PATH.read_text(encoding="utf-8")
+    template_dashboard = yaml.safe_load(template_content) or {}
+    if not isinstance(template_dashboard, dict):
+        raise ValueError("Template dashboard is not a YAML mapping")
+
+    template_views = template_dashboard.get("views")
+    if not isinstance(template_views, list) or not template_views:
+        raise ValueError("Template dashboard has no views to merge")
+
+    return [view for view in template_views if isinstance(view, dict)]
+
+
+def _merge_template_views_into_dashboard(
+    existing_dashboard: dict[str, Any], template_views: list[dict[str, Any]]
+) -> int:
+    """Append Smart Charge views that are missing from an existing dashboard."""
+
+    existing_views = existing_dashboard.get("views")
+    if existing_views is None:
+        existing_views = []
+        existing_dashboard["views"] = existing_views
+    if not isinstance(existing_views, list):
+        raise ValueError("Existing dashboard 'views' is not a list")
+
+    existing_paths = {
+        str(view.get("path")).strip()
+        for view in existing_views
+        if isinstance(view, dict) and view.get("path")
+    }
+    existing_titles = {
+        str(view.get("title")).strip()
+        for view in existing_views
+        if isinstance(view, dict) and view.get("title")
+    }
+
+    views_added = 0
+    for view in template_views:
+        view_path = str(view.get("path")).strip() if view.get("path") else ""
+        view_title = str(view.get("title")).strip() if view.get("title") else ""
+        is_smart_charge_view = (
+            view_path == _SMART_CHARGE_VIEW_PATH
+            or view_title == _SMART_CHARGE_VIEW_TITLE
+        )
+        if is_smart_charge_view and (
+            _SMART_CHARGE_VIEW_PATH in existing_paths
+            or _LEGACY_SMART_CHARGE_VIEW_PATH in existing_paths
+            or _SMART_CHARGE_VIEW_TITLE in existing_titles
+            or _LEGACY_SMART_CHARGE_VIEW_TITLE in existing_titles
+        ):
+            continue
+        if (view_path and view_path in existing_paths) or (
+            view_title and view_title in existing_titles
+        ):
+            continue
+
+        existing_views.append(view)
+        if view_path:
+            existing_paths.add(view_path)
+        if view_title:
+            existing_titles.add(view_title)
+        views_added += 1
+
+    return views_added
+
+
+async def _async_add_template_view_to_storage_dashboard(
+    hass: HomeAssistant, url_path: str
+) -> bool:
+    """Merge Smart Charge view into an existing storage Lovelace dashboard."""
+
+    selected_url_path = url_path.strip()
+    dashboard_key: str | None
+    if selected_url_path == _DASHBOARD_TARGET_STORAGE_DEFAULT:
+        dashboard_key = None
+    else:
+        dashboard_key = selected_url_path
+
+    lovelace_data = hass.data.get(_LOVELACE_DATA_KEY)
+    dashboards = getattr(lovelace_data, "dashboards", None)
+    if not isinstance(dashboards, dict):
+        _LOGGER.error("Lovelace dashboard registry is not available")
+        return False
+
+    dashboard_obj = dashboards.get(dashboard_key)
+    if dashboard_obj is None:
+        _LOGGER.error("Storage dashboard not found: %s", selected_url_path)
+        return False
+
+    try:
+        template_views = await hass.async_add_executor_job(_load_template_views)
+    except FileNotFoundError:
+        _LOGGER.error("Dashboard template not found: %s", _DASHBOARD_TEMPLATE_PATH)
+        return False
+    except yaml.YAMLError as err:
+        _LOGGER.error("Template dashboard YAML is invalid: %s", err)
+        return False
+    except ValueError as err:
+        _LOGGER.error("Template dashboard is invalid: %s", err)
+        return False
+
+    try:
+        existing_dashboard = await dashboard_obj.async_load(False)
+    except Exception as err:
+        _LOGGER.error("Unable to load storage dashboard %s: %s", selected_url_path, err)
+        return False
+
+    if not isinstance(existing_dashboard, dict):
+        _LOGGER.error("Storage dashboard %s config is invalid", selected_url_path)
+        return False
+
+    try:
+        views_added = _merge_template_views_into_dashboard(
+            existing_dashboard, template_views
+        )
+    except ValueError as err:
+        _LOGGER.error(
+            "Unable to merge template into storage dashboard %s: %s",
+            selected_url_path,
+            err,
+        )
+        return False
+
+    if views_added:
+        try:
+            await dashboard_obj.async_save(existing_dashboard)
+        except Exception as err:
+            _LOGGER.error("Unable to save storage dashboard %s: %s", selected_url_path, err)
+            return False
+
+    display_path = "/" if dashboard_key is None else f"/{dashboard_key}"
+    if views_added:
+        message = (
+            f"Added {views_added} Smart Charge view(s) to storage dashboard `{display_path}`."
+        )
+        title = "Smart Charge view added to existing dashboard"
+    else:
+        message = (
+            f"No change in storage dashboard `{display_path}` because "
+            "the Smart Charge view is already present."
+        )
+        title = "Smart Charge dashboard view already present"
+
+    _LOGGER.warning(message)
+    try:
+        await hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {"title": title, "message": message},
+            blocking=False,
+        )
+    except Exception:  # pragma: no cover - optional notification service
+        _LOGGER.debug(
+            "Unable to create persistent notification for storage dashboard merge"
+        )
+
+    return True
+
+
 async def _async_add_template_view_to_existing_dashboard(
     hass: HomeAssistant, filename: str
 ) -> bool:
@@ -235,68 +411,16 @@ async def _async_add_template_view_to_existing_dashboard(
         if not target_path.exists():
             raise FileNotFoundError(filename)
 
-        template_content = _DASHBOARD_TEMPLATE_PATH.read_text(encoding="utf-8")
         existing_content = target_path.read_text(encoding="utf-8")
-
-        template_dashboard = yaml.safe_load(template_content) or {}
+        template_views = _load_template_views()
         existing_dashboard = yaml.safe_load(existing_content) or {}
 
-        if not isinstance(template_dashboard, dict):
-            raise ValueError("Template dashboard is not a YAML mapping")
         if not isinstance(existing_dashboard, dict):
             raise ValueError("Existing dashboard is not a YAML mapping")
 
-        template_views = template_dashboard.get("views")
-        if not isinstance(template_views, list) or not template_views:
-            raise ValueError("Template dashboard has no views to merge")
-
-        existing_views = existing_dashboard.get("views")
-        if existing_views is None:
-            existing_views = []
-            existing_dashboard["views"] = existing_views
-        if not isinstance(existing_views, list):
-            raise ValueError("Existing dashboard 'views' is not a list")
-
-        existing_paths = {
-            str(view.get("path")).strip()
-            for view in existing_views
-            if isinstance(view, dict) and view.get("path")
-        }
-        existing_titles = {
-            str(view.get("title")).strip()
-            for view in existing_views
-            if isinstance(view, dict) and view.get("title")
-        }
-
-        views_added = 0
-        for view in template_views:
-            if not isinstance(view, dict):
-                continue
-
-            view_path = str(view.get("path")).strip() if view.get("path") else ""
-            view_title = str(view.get("title")).strip() if view.get("title") else ""
-            is_smart_charge_view = (
-                view_path == _SMART_CHARGE_VIEW_PATH
-                or view_title == _SMART_CHARGE_VIEW_TITLE
-            )
-            if is_smart_charge_view and (
-                _SMART_CHARGE_VIEW_PATH in existing_paths
-                or _LEGACY_SMART_CHARGE_VIEW_PATH in existing_paths
-                or _SMART_CHARGE_VIEW_TITLE in existing_titles
-                or _LEGACY_SMART_CHARGE_VIEW_TITLE in existing_titles
-            ):
-                continue
-            if (view_path and view_path in existing_paths) or (
-                view_title and view_title in existing_titles
-            ):
-                continue
-
-            existing_views.append(view)
-            if view_path:
-                existing_paths.add(view_path)
-            if view_title:
-                existing_titles.add(view_title)
-            views_added += 1
+        views_added = _merge_template_views_into_dashboard(
+            existing_dashboard, template_views
+        )
 
         if views_added:
             merged_content = yaml.safe_dump(
@@ -351,7 +475,9 @@ async def _async_add_template_view_to_existing_dashboard(
     return True
 
 
-def _get_coordinators(hass: HomeAssistant, entry_id: str | None) -> list[TeslaSmartChargeCoordinator]:
+def _get_coordinators(
+    hass: HomeAssistant, entry_id: str | None
+) -> list[TeslaSmartChargeCoordinator]:
     """Return coordinators based on an optional entry id."""
 
     if entry_id:
