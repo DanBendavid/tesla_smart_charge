@@ -1,6 +1,8 @@
 
 # ⚡ Tesla Smart Charge
 
+[English](README.md) | [Français](README.fr.md)
+
 [](https://github.com/hacs/integration)
 [](https://opensource.org/licenses/MIT)
 [](https://www.home-assistant.io/)
