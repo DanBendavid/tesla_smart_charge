@@ -112,6 +112,7 @@ Minimal example:
 
 - If current SOC is already above `Minimum SOC By Ready Time`, required energy can be `0`.
 - `Ready By Hour` applies to today if the hour is still ahead, otherwise it applies to tomorrow.
+- Spot day-ahead tomorrow prices are fetched for J+1 (`00:00` to `23:45`) after the publication window (guarded from `13:10` local time), and the optimizer uses a spot horizon from `now` to `J+2 00:00` (end of tomorrow).
 - Bonus slots are only used when `SOC If Cheap` is above current/required SOC and `Cheap Price Threshold` matches available future prices.
 - If active charging is requested (slot or immediate mode) and charge limit is at/below current SOC, the integration temporarily bumps charge limit to `SOC + 1%` so charging can start, then restores the original value when active demand ends.
 - `Module Charge Controllable` depends on both required mappings: `charger_connected_sensor` and `scheduled_charging_sensor`.

@@ -91,7 +91,10 @@ _SOBRY_HEADERS = {
     "User-Agent": "sobry-energy-app/0.1 (+https://sobry.co)",
     "Accept": "application/json",
 }
-_DAY_AHEAD_PUBLISH_HOUR = 12
+# Day-ahead data is typically published around 12:55-13:08 local time.
+# We gate tomorrow fetches slightly after that window to avoid premature requests.
+_DAY_AHEAD_PUBLISH_HOUR = 13
+_DAY_AHEAD_PUBLISH_MINUTE = 10
 _FORCE_CHARGE_LIMIT_MARGIN_SOC = 1.0
 
 _ENERGY_INPUT_KEYS = {
@@ -794,14 +797,14 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
         return self._parse_tariff_list(data)
 
     async def _async_fetch_tariff_from_spot(self) -> list[TariffSlot]:
-        """Fetch rolling 24-hour slots from Sobry raw + pricing params."""
+        """Fetch spot slots from now until end of tomorrow (J+1)."""
 
         now = dt_util.now()
-        horizon_end = now + timedelta(hours=24)
         now_local = dt_util.as_local(now)
         today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
         tomorrow_start = today_start + timedelta(days=1)
         day_after_start = tomorrow_start + timedelta(days=1)
+        horizon_end = day_after_start
 
         today_slots = await self._async_fetch_spot_raw_window(
             start_date=today_start.date().isoformat(),
@@ -809,26 +812,32 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
         )
 
         tomorrow_slots: list[TariffSlot] = []
-        if horizon_end > tomorrow_start:
-            if now_local.hour >= _DAY_AHEAD_PUBLISH_HOUR:
-                try:
-                    tomorrow_slots = await self._async_fetch_spot_raw_window(
-                        start_date=tomorrow_start.date().isoformat(),
-                        end_date=day_after_start.date().isoformat(),
-                    )
-                except UpdateFailed as err:
-                    _LOGGER.debug("Tomorrow raw prices unavailable yet: %s", err)
-            else:
-                _LOGGER.debug(
-                    "Skipping tomorrow raw fetch before %02d:00 local time",
-                    _DAY_AHEAD_PUBLISH_HOUR,
+        if (
+            now_local.hour > _DAY_AHEAD_PUBLISH_HOUR
+            or (
+                now_local.hour == _DAY_AHEAD_PUBLISH_HOUR
+                and now_local.minute >= _DAY_AHEAD_PUBLISH_MINUTE
+            )
+        ):
+            try:
+                tomorrow_slots = await self._async_fetch_spot_raw_window(
+                    start_date=tomorrow_start.date().isoformat(),
+                    end_date=day_after_start.date().isoformat(),
                 )
+            except UpdateFailed as err:
+                _LOGGER.debug("Tomorrow raw prices unavailable yet: %s", err)
+        else:
+            _LOGGER.debug(
+                "Skipping tomorrow raw fetch before %02d:%02d local time",
+                _DAY_AHEAD_PUBLISH_HOUR,
+                _DAY_AHEAD_PUBLISH_MINUTE,
+            )
 
         merged: dict[datetime, TariffSlot] = {}
         for slot in today_slots + tomorrow_slots:
             merged[slot.start] = slot
 
-        if horizon_end > tomorrow_start and not tomorrow_slots and self._tariff_slots:
+        if not tomorrow_slots and self._tariff_slots:
             cached_tomorrow = [
                 slot
                 for slot in self._tariff_slots
