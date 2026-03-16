@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_CHARGER_CONNECTED_SENSOR,
-    CONF_SCHEDULED_CHARGING_SWITCH,
+    CONF_SCHEDULED_CHARGING_SENSOR,
     DOMAIN,
 )
 from .coordinator import TeslaSmartChargeCoordinator, get_device_info
@@ -118,7 +118,7 @@ def _module_charge_controllable_attrs(coordinator: TeslaSmartChargeCoordinator) 
         "tesla_scheduled_charging_enabled": scheduled_enabled,
         "reason": reason,
         "plug_sensor_entity": coordinator.entry.data.get(CONF_CHARGER_CONNECTED_SENSOR),
-        "scheduled_charging_entity": coordinator.entry.data.get(CONF_SCHEDULED_CHARGING_SWITCH),
+        "scheduled_charging_entity": _scheduled_charging_entity_id(coordinator),
     }
 
 
@@ -131,7 +131,7 @@ def _live_control_state(
         coordinator.entry.data.get(CONF_CHARGER_CONNECTED_SENSOR)
     )
     scheduled_state = coordinator.hass.states.get(
-        coordinator.entry.data.get(CONF_SCHEDULED_CHARGING_SWITCH)
+        _scheduled_charging_entity_id(coordinator)
     )
 
     plug_connected = _state_on(plug_state)
@@ -151,3 +151,9 @@ def _state_on(state: Any) -> bool | None:
     if state.state == STATE_OFF:
         return False
     return None
+
+
+def _scheduled_charging_entity_id(coordinator: TeslaSmartChargeCoordinator) -> str | None:
+    """Return scheduled charging binary sensor entity id."""
+
+    return coordinator.entry.data.get(CONF_SCHEDULED_CHARGING_SENSOR)

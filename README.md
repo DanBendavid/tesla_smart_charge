@@ -42,8 +42,7 @@ It also supports optional low-price bonus charging (`SOC If Cheap`) and provides
 
 1. Go to `Settings` -> `Devices & Services` -> `Add Integration`.
 2. Add `Tesla Smart Charge`.
-3. Map Tesla-related entities: battery SOC sensor, charging binary sensor, charger switch, charger power sensor, charge limit number, charging amps number, range sensor, time charge complete sensor.  
-   Optional: map `charger_connected_sensor` (plug connected) and `scheduled_charging_switch` (Tesla scheduled charging).
+3. Map Tesla-related entities: battery SOC sensor, charging binary sensor, charger switch, charger power sensor, charge limit number, charging amps number, range sensor, time charge complete sensor, `charger_connected_sensor` (plug connected), and `scheduled_charging_sensor` (Tesla scheduled charging).
 4. Choose a tariff source: `Sensor Attribute`, `REST Endpoint`, or `Spot Raw`.
 5. Set constants: battery capacity (kWh), vehicle efficiency (Wh/km), and max charging power (kW).
 
@@ -114,4 +113,4 @@ Minimal example:
 - If current SOC is already above `Minimum SOC By Ready Time`, required energy can be `0`.
 - Bonus slots are only used when `SOC If Cheap` is above current/required SOC and `Cheap Price Threshold` matches available future prices.
 - If active charging is requested (slot or immediate mode) and charge limit is at/below current SOC, the integration temporarily bumps charge limit to `SOC + 1%` so charging can start, then restores the original value when active demand ends.
-- `Module Charge Controllable` requires both optional mappings (`charger_connected_sensor` and `scheduled_charging_switch`) to be fully deterministic.
+- `Module Charge Controllable` depends on both required mappings: `charger_connected_sensor` and `scheduled_charging_sensor`.

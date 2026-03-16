@@ -14,8 +14,8 @@
           "charging_amps_number": "Charging amps number",
           "range_sensor": "Range sensor",
           "time_charge_complete_sensor": "Time charge complete sensor",
-          "charger_connected_sensor": "Plug connected sensor (optional)",
-          "scheduled_charging_switch": "Tesla scheduled charging switch (optional)"
+          "charger_connected_sensor": "Plug connected sensor",
+          "scheduled_charging_sensor": "Tesla scheduled charging sensor"
         }
       },
       "tariff": {

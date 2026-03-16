@@ -35,7 +35,7 @@ from .const import (
     CONF_CHARGING_SENSOR,
     CONF_MAX_CHARGING_POWER,
     CONF_RANGE_SENSOR,
-    CONF_SCHEDULED_CHARGING_SWITCH,
+    CONF_SCHEDULED_CHARGING_SENSOR,
     CONF_TARIFF_ATTRIBUTE,
     CONF_TARIFF_REST_HEADERS,
     CONF_TARIFF_REST_JSON_PATH,
@@ -244,7 +244,7 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
             self.entry.data.get(CONF_RANGE_SENSOR),
             self.entry.data.get(CONF_TIME_CHARGE_COMPLETE_SENSOR),
             self.entry.data.get(CONF_CHARGER_CONNECTED_SENSOR),
-            self.entry.data.get(CONF_SCHEDULED_CHARGING_SWITCH),
+            self._scheduled_charging_entity_id(),
         ]
         if self._tariff_source == TARIFF_SOURCE_SENSOR:
             entity_ids.append(self.entry.data.get(CONF_TARIFF_SENSOR))
@@ -1006,7 +1006,7 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
             self.entry.data.get(CONF_CHARGER_CONNECTED_SENSOR)
         )
         scheduled_charging_state = self.hass.states.get(
-            self.entry.data.get(CONF_SCHEDULED_CHARGING_SWITCH)
+            self._scheduled_charging_entity_id()
         )
 
         soc = _safe_float(_state_value(battery_state))
@@ -1032,6 +1032,11 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
             charger_connected=charger_connected,
             scheduled_charging_enabled=scheduled_charging_enabled,
         )
+
+    def _scheduled_charging_entity_id(self) -> str | None:
+        """Return scheduled charging binary sensor entity id."""
+
+        return self.entry.data.get(CONF_SCHEDULED_CHARGING_SENSOR)
 
     async def _async_turn_on(self, entity_id: str) -> None:
         """Turn on a switch entity."""
