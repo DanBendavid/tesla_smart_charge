@@ -1,4 +1,4 @@
-# Tesla Smart Charge
+# ⚡ Tesla Smart Charge
 
 [English](README.md) | [Français](README.fr.md)
 
@@ -10,7 +10,7 @@
 
 -----
 
-## Fonctionnalites principales
+## ✨ Fonctionnalites principales
 
   * **Optimisation en deux etapes :**
     1.  **Priorite readiness :** Atteint votre `Minimum SOC` avant `Ready By Hour`.
@@ -21,7 +21,7 @@
 
 -----
 
-## Prerequis
+## 🛠 Prerequis
 
 1.  **Integration Tesla :** Une integration Tesla active (officielle ou custom) fournissant SOC, amperage, switch de charge et etat du cable.
 2.  **Donnees tarifaires :** Un capteur ou une API qui fournit les prix a venir.
@@ -29,7 +29,7 @@
 
 -----
 
-## Installation
+## 🚀 Installation
 
 ### Option 1 : HACS (recommande)
 
@@ -45,7 +45,7 @@
 
 -----
 
-## Configuration
+## ⚙️ Configuration
 
 1.  Allez dans **Settings** > **Devices & Services** > **Add Integration**.
 2.  Recherchez **Tesla Smart Charge**.
@@ -54,19 +54,19 @@
 
 -----
 
-## Entites principales
+## 📊 Entites principales
 
 | Icon | Type d'entite | Nom | Usage |
 | :--- | :--- | :--- | :--- |
-| 1 | **Number** | `Minimum SOC By Ready Time` | Niveau batterie cible pour le depart. |
-| 2 | **Number** | `Ready By Hour` | Echeance pour atteindre le SOC minimum. |
-| 3 | **Number** | `Cheap Price Threshold` | Prix plafond pour la recharge "Bonus". |
-| 4 | **Switch** | `Smart Charging Enabled` | Interrupteur principal de l'optimiseur. |
-| 5 | **Binary Sensor** | `Module Charge Controllable` | Actif si cable branche et planification Tesla desactivee. |
+| 🔢 | **Number** | `Minimum SOC By Ready Time` | Niveau batterie cible pour le depart. |
+| 🕒 | **Number** | `Ready By Hour` | Echeance pour atteindre le SOC minimum. |
+| 💰 | **Number** | `Cheap Price Threshold` | Prix plafond pour la recharge "Bonus". |
+| ⚡ | **Switch** | `Smart Charging Enabled` | Interrupteur principal de l'optimiseur. |
+| 🛰️ | **Binary Sensor** | `Module Charge Controllable` | Actif si cable branche et planification Tesla desactivee. |
 
 -----
 
-## Services
+## 🛠 Services
 
 | Service | Description |
 | :--- | :--- |
@@ -85,7 +85,7 @@ data:
 
 -----
 
-## Notes techniques
+## 💡 Notes techniques
 
 > [!IMPORTANT]
 > **Controlabilite :** le capteur `Module Charge Controllable` doit etre a `True` pour que l'integration fonctionne. Cela demande que la voiture soit **branchee** et que la **planification de charge Tesla interne soit desactivee** (pour eviter les conflits).
@@ -96,6 +96,6 @@ data:
 
 -----
 
-## Contribuer
+## 🤝 Contribuer
 
 Feedback et Pull Requests bienvenus. Ouvrez un issue pour tout bug ou demande de fonctionnalite.
