@@ -16,6 +16,8 @@ CONF_TIME_CHARGE_COMPLETE_SENSOR = "time_charge_complete_sensor"
 CONF_CHARGER_CONNECTED_SENSOR = "charger_connected_sensor"
 CONF_SCHEDULED_CHARGING_SENSOR = "scheduled_charging_sensor"
 CONF_INSTALL_DASHBOARD_ON_SETUP = "install_dashboard_on_setup"
+CONF_ADD_TO_EXISTING_DASHBOARD = "add_to_existing_dashboard"
+CONF_EXISTING_DASHBOARD_FILENAME = "existing_dashboard_filename"
 
 # Tariff configuration.
 CONF_TARIFF_SOURCE = "tariff_source"
@@ -75,3 +77,4 @@ SERVICE_INSTALL_DASHBOARD_TEMPLATE = "install_dashboard_template"
 
 ATTR_ENTRY_ID = "entry_id"
 ATTR_FILENAME = "filename"
+ATTR_EXISTING_DASHBOARD_FILENAME = "existing_dashboard_filename"

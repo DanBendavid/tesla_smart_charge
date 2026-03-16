@@ -11,6 +11,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_ADD_TO_EXISTING_DASHBOARD,
     CONF_BATTERY_CAPACITY,
     CONF_BATTERY_SENSOR,
     CONF_CHARGE_LIMIT_NUMBER,
@@ -19,6 +20,7 @@ from .const import (
     CONF_CHARGER_SWITCH,
     CONF_CHARGING_AMPS_NUMBER,
     CONF_CHARGING_SENSOR,
+    CONF_EXISTING_DASHBOARD_FILENAME,
     CONF_INSTALL_DASHBOARD_ON_SETUP,
     CONF_MAX_CHARGING_POWER,
     CONF_RANGE_SENSOR,
@@ -258,6 +260,15 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._data.update(user_input)
+            install_dashboard = bool(user_input.get(CONF_INSTALL_DASHBOARD_ON_SETUP))
+            add_to_existing = bool(user_input.get(CONF_ADD_TO_EXISTING_DASHBOARD))
+            if not install_dashboard:
+                self._data[CONF_ADD_TO_EXISTING_DASHBOARD] = False
+                self._data.pop(CONF_EXISTING_DASHBOARD_FILENAME, None)
+                return self.async_create_entry(title="Tesla Smart Charge", data=self._data)
+            if install_dashboard and add_to_existing:
+                return await self.async_step_existing_dashboard()
+            self._data.pop(CONF_EXISTING_DASHBOARD_FILENAME, None)
             return self.async_create_entry(title="Tesla Smart Charge", data=self._data)
 
         schema = vol.Schema(
@@ -299,7 +310,39 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_INSTALL_DASHBOARD_ON_SETUP,
                     default=True,
                 ): selector.BooleanSelector(),
+                vol.Required(
+                    CONF_ADD_TO_EXISTING_DASHBOARD,
+                    default=False,
+                ): selector.BooleanSelector(),
             }
         )
 
         return self.async_show_form(step_id="constants", data_schema=schema)
+
+    async def async_step_existing_dashboard(self, user_input: dict | None = None):
+        """Collect existing dashboard file path for view injection."""
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            filename = str(
+                user_input[CONF_EXISTING_DASHBOARD_FILENAME]
+            ).strip()
+            if not filename:
+                errors[CONF_EXISTING_DASHBOARD_FILENAME] = "empty_dashboard_filename"
+            else:
+                self._data[CONF_EXISTING_DASHBOARD_FILENAME] = filename
+                return self.async_create_entry(title="Tesla Smart Charge", data=self._data)
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_EXISTING_DASHBOARD_FILENAME,
+                    default=self._data.get(CONF_EXISTING_DASHBOARD_FILENAME, "ui-lovelace.yaml"),
+                ): selector.TextSelector(),
+            }
+        )
+
+        return self.async_show_form(
+            step_id="existing_dashboard", data_schema=schema, errors=errors
+        )

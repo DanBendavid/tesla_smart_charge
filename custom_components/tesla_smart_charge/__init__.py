@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import voluptuous as vol
+import yaml
 
 import homeassistant.helpers.config_validation as cv
 from homeassistant.config_entries import ConfigEntry
@@ -15,7 +16,10 @@ from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import (
     ATTR_FILENAME,
+    ATTR_EXISTING_DASHBOARD_FILENAME,
     ATTR_ENTRY_ID,
+    CONF_ADD_TO_EXISTING_DASHBOARD,
+    CONF_EXISTING_DASHBOARD_FILENAME,
     CONF_INSTALL_DASHBOARD_ON_SETUP,
     DOMAIN,
     PLATFORMS,
@@ -60,6 +64,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             schema=vol.Schema(
                 {
                     vol.Optional(ATTR_FILENAME, default=_DEFAULT_DASHBOARD_FILENAME): str,
+                    vol.Optional(ATTR_EXISTING_DASHBOARD_FILENAME): str,
                 }
             ),
         )
@@ -86,7 +91,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     if entry.data.get(CONF_INSTALL_DASHBOARD_ON_SETUP):
-        installed = await _async_install_dashboard_template(hass, _DEFAULT_DASHBOARD_FILENAME)
+        add_to_existing = bool(entry.data.get(CONF_ADD_TO_EXISTING_DASHBOARD))
+        existing_dashboard_filename = str(
+            entry.data.get(CONF_EXISTING_DASHBOARD_FILENAME, "")
+        ).strip()
+        if add_to_existing or existing_dashboard_filename:
+            existing_dashboard_filename = existing_dashboard_filename or "ui-lovelace.yaml"
+            installed = await _async_add_template_view_to_existing_dashboard(
+                hass, existing_dashboard_filename
+            )
+        else:
+            installed = await _async_install_dashboard_template(
+                hass, _DEFAULT_DASHBOARD_FILENAME
+            )
         if installed:
             new_data = dict(entry.data)
             new_data[CONF_INSTALL_DASHBOARD_ON_SETUP] = False
@@ -128,6 +145,15 @@ async def _handle_install_dashboard_template(call: ServiceCall) -> None:
     """Install the packaged Lovelace dashboard template into /config."""
 
     hass: HomeAssistant = call.hass
+    existing_dashboard_filename = str(
+        call.data.get(ATTR_EXISTING_DASHBOARD_FILENAME, "")
+    ).strip()
+    if existing_dashboard_filename:
+        await _async_add_template_view_to_existing_dashboard(
+            hass, existing_dashboard_filename
+        )
+        return
+
     filename = str(call.data.get(ATTR_FILENAME, _DEFAULT_DASHBOARD_FILENAME)).strip()
     await _async_install_dashboard_template(hass, filename)
 
@@ -181,6 +207,131 @@ async def _async_install_dashboard_template(hass: HomeAssistant, filename: str) 
         )
     except Exception:  # pragma: no cover - optional notification service
         _LOGGER.debug("Unable to create persistent notification for dashboard template")
+
+    return True
+
+
+async def _async_add_template_view_to_existing_dashboard(
+    hass: HomeAssistant, filename: str
+) -> bool:
+    """Merge Tesla Smart Charge view into an existing Lovelace YAML dashboard."""
+
+    filename = filename.replace("\\", "/").strip()
+    if not filename:
+        _LOGGER.error("Existing dashboard filename is empty")
+        return False
+
+    if not _DASHBOARD_TEMPLATE_PATH.exists():
+        _LOGGER.error("Dashboard template not found: %s", _DASHBOARD_TEMPLATE_PATH)
+        return False
+
+    target_path = Path(hass.config.path(filename))
+
+    def _merge_template_view() -> int:
+        if not target_path.exists():
+            raise FileNotFoundError(filename)
+
+        template_content = _DASHBOARD_TEMPLATE_PATH.read_text(encoding="utf-8")
+        existing_content = target_path.read_text(encoding="utf-8")
+
+        template_dashboard = yaml.safe_load(template_content) or {}
+        existing_dashboard = yaml.safe_load(existing_content) or {}
+
+        if not isinstance(template_dashboard, dict):
+            raise ValueError("Template dashboard is not a YAML mapping")
+        if not isinstance(existing_dashboard, dict):
+            raise ValueError("Existing dashboard is not a YAML mapping")
+
+        template_views = template_dashboard.get("views")
+        if not isinstance(template_views, list) or not template_views:
+            raise ValueError("Template dashboard has no views to merge")
+
+        existing_views = existing_dashboard.get("views")
+        if existing_views is None:
+            existing_views = []
+            existing_dashboard["views"] = existing_views
+        if not isinstance(existing_views, list):
+            raise ValueError("Existing dashboard 'views' is not a list")
+
+        existing_paths = {
+            str(view.get("path")).strip()
+            for view in existing_views
+            if isinstance(view, dict) and view.get("path")
+        }
+        existing_titles = {
+            str(view.get("title")).strip()
+            for view in existing_views
+            if isinstance(view, dict) and view.get("title")
+        }
+
+        views_added = 0
+        for view in template_views:
+            if not isinstance(view, dict):
+                continue
+
+            view_path = str(view.get("path")).strip() if view.get("path") else ""
+            view_title = str(view.get("title")).strip() if view.get("title") else ""
+            if (view_path and view_path in existing_paths) or (
+                view_title and view_title in existing_titles
+            ):
+                continue
+
+            existing_views.append(view)
+            if view_path:
+                existing_paths.add(view_path)
+            if view_title:
+                existing_titles.add(view_title)
+            views_added += 1
+
+        if views_added:
+            merged_content = yaml.safe_dump(
+                existing_dashboard, sort_keys=False, allow_unicode=True
+            )
+            target_path.write_text(merged_content, encoding="utf-8")
+
+        return views_added
+
+    try:
+        views_added = await hass.async_add_executor_job(_merge_template_view)
+    except FileNotFoundError:
+        _LOGGER.error("Existing dashboard file not found: %s", target_path)
+        return False
+    except yaml.YAMLError as err:
+        _LOGGER.error(
+            "Existing dashboard file is not valid YAML (%s): %s", target_path, err
+        )
+        return False
+    except ValueError as err:
+        _LOGGER.error(
+            "Unable to merge dashboard template into %s: %s", target_path, err
+        )
+        return False
+    except Exception as err:
+        _LOGGER.error("Unexpected error while merging dashboard %s: %s", target_path, err)
+        return False
+
+    if views_added:
+        message = (
+            f"Added {views_added} Tesla Smart Charge view(s) to `{filename}`.\n\n"
+            "Reload YAML configuration or restart Home Assistant to apply changes."
+        )
+        title = "Tesla Smart Charge view added to existing dashboard"
+    else:
+        message = (
+            f"No change in `{filename}` because the Tesla Smart Charge view is already present."
+        )
+        title = "Tesla Smart Charge dashboard view already present"
+
+    _LOGGER.warning(message)
+    try:
+        await hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {"title": title, "message": message},
+            blocking=False,
+        )
+    except Exception:  # pragma: no cover - optional notification service
+        _LOGGER.debug("Unable to create persistent notification for dashboard merge")
 
     return True
 

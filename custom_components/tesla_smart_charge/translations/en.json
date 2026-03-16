@@ -48,12 +48,21 @@
           "battery_capacity_kwh": "Battery usable capacity (kWh, typical 50-100)",
           "vehicle_efficiency_wh_per_km": "Vehicle efficiency (Wh/km, typical 140-220)",
           "max_charging_power_kw": "Max charging power (kW, typical home 3-7)",
-          "install_dashboard_on_setup": "Install dashboard template now"
+          "install_dashboard_on_setup": "Install dashboard template now",
+          "add_to_existing_dashboard": "Add Tesla view to an existing dashboard"
+        }
+      },
+      "existing_dashboard": {
+        "title": "Existing dashboard file",
+        "description": "Provide the YAML dashboard filename where the Tesla view should be added.",
+        "data": {
+          "existing_dashboard_filename": "Existing dashboard filename"
         }
       }
     },
     "error": {
-      "invalid_headers": "Headers must be valid JSON."
+      "invalid_headers": "Headers must be valid JSON.",
+      "empty_dashboard_filename": "Dashboard filename cannot be empty."
     }
   }
 }

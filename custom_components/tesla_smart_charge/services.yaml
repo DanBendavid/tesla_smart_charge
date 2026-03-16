@@ -16,9 +16,13 @@ apply_control:
       example: "abcd1234"
 install_dashboard_template:
   name: Install dashboard template
-  description: Copy the packaged Lovelace dashboard YAML to your /config folder.
+  description: Copy the packaged Lovelace dashboard YAML to /config, or merge its view into an existing dashboard.
   fields:
     filename:
       name: Target filename
       description: Relative path under /config where the dashboard YAML is written.
       example: "dashboards/tesla_smart_charge.yaml"
+    existing_dashboard_filename:
+      name: Existing dashboard filename
+      description: Relative path of an existing YAML dashboard file where the Tesla view is appended.
+      example: "ui-lovelace.yaml"
