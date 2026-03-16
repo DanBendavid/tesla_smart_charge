@@ -47,7 +47,8 @@
         "data": {
           "battery_capacity_kwh": "Battery usable capacity (kWh, typical 50-100)",
           "vehicle_efficiency_wh_per_km": "Vehicle efficiency (Wh/km, typical 140-220)",
-          "max_charging_power_kw": "Max charging power (kW, typical home 3-7)"
+          "max_charging_power_kw": "Max charging power (kW, typical home 3-7)",
+          "install_dashboard_on_setup": "Install dashboard template now"
         }
       }
     },

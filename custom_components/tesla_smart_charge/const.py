@@ -15,6 +15,7 @@ CONF_RANGE_SENSOR = "range_sensor"
 CONF_TIME_CHARGE_COMPLETE_SENSOR = "time_charge_complete_sensor"
 CONF_CHARGER_CONNECTED_SENSOR = "charger_connected_sensor"
 CONF_SCHEDULED_CHARGING_SENSOR = "scheduled_charging_sensor"
+CONF_INSTALL_DASHBOARD_ON_SETUP = "install_dashboard_on_setup"
 
 # Tariff configuration.
 CONF_TARIFF_SOURCE = "tariff_source"

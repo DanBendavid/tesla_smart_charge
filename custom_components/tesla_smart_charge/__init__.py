@@ -16,6 +16,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from .const import (
     ATTR_FILENAME,
     ATTR_ENTRY_ID,
+    CONF_INSTALL_DASHBOARD_ON_SETUP,
     DOMAIN,
     PLATFORMS,
     SERVICE_APPLY_CONTROL,
@@ -83,6 +84,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.async_on_unload(unsub)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    if entry.data.get(CONF_INSTALL_DASHBOARD_ON_SETUP):
+        installed = await _async_install_dashboard_template(hass, _DEFAULT_DASHBOARD_FILENAME)
+        if installed:
+            new_data = dict(entry.data)
+            new_data[CONF_INSTALL_DASHBOARD_ON_SETUP] = False
+            hass.config_entries.async_update_entry(entry, data=new_data)
+
     return True
 
 
@@ -120,13 +129,19 @@ async def _handle_install_dashboard_template(call: ServiceCall) -> None:
 
     hass: HomeAssistant = call.hass
     filename = str(call.data.get(ATTR_FILENAME, _DEFAULT_DASHBOARD_FILENAME)).strip()
+    await _async_install_dashboard_template(hass, filename)
+
+
+async def _async_install_dashboard_template(hass: HomeAssistant, filename: str) -> bool:
+    """Install the packaged Lovelace dashboard template into /config."""
+
     if not filename:
         filename = _DEFAULT_DASHBOARD_FILENAME
     filename = filename.replace("\\", "/")
 
     if not _DASHBOARD_TEMPLATE_PATH.exists():
         _LOGGER.error("Dashboard template not found: %s", _DASHBOARD_TEMPLATE_PATH)
-        return
+        return False
 
     target_path = Path(hass.config.path(filename))
 
@@ -166,6 +181,8 @@ async def _handle_install_dashboard_template(call: ServiceCall) -> None:
         )
     except Exception:  # pragma: no cover - optional notification service
         _LOGGER.debug("Unable to create persistent notification for dashboard template")
+
+    return True
 
 
 def _get_coordinators(hass: HomeAssistant, entry_id: str | None) -> list[TeslaSmartChargeCoordinator]:

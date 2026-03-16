@@ -19,6 +19,7 @@ from .const import (
     CONF_CHARGER_SWITCH,
     CONF_CHARGING_AMPS_NUMBER,
     CONF_CHARGING_SENSOR,
+    CONF_INSTALL_DASHBOARD_ON_SETUP,
     CONF_MAX_CHARGING_POWER,
     CONF_RANGE_SENSOR,
     CONF_SCHEDULED_CHARGING_SENSOR,
@@ -294,6 +295,10 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode="box",
                     )
                 ),
+                vol.Required(
+                    CONF_INSTALL_DASHBOARD_ON_SETUP,
+                    default=True,
+                ): selector.BooleanSelector(),
             }
         )
 

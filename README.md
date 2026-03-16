@@ -44,7 +44,7 @@ It also supports optional low-price bonus charging (`SOC If Cheap`) and provides
 2. Add `Tesla Smart Charge`.
 3. Map Tesla-related entities: battery SOC sensor, charging binary sensor, charger switch, charger power sensor, charge limit number, charging amps number, range sensor, time charge complete sensor, `charger_connected_sensor` (plug connected), and `scheduled_charging_sensor` (Tesla scheduled charging).
 4. Choose a tariff source: `Sensor Attribute`, `REST Endpoint`, or `Spot Raw`.
-5. Set constants: battery capacity (kWh), vehicle efficiency (Wh/km), and max charging power (kW).
+5. Set constants: battery capacity (kWh), vehicle efficiency (Wh/km), max charging power (kW), and whether to install the dashboard template now.
 
 ## Main entities
 
