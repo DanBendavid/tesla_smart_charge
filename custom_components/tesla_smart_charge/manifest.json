@@ -1,11 +1,13 @@
 {
   "domain": "tesla_smart_charge",
   "name": "Tesla Smart Charge",
-  "codeowners": ["@DanBendavid"],
+  "codeowners": [
+    "@DanBendavid"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/DanBendavid/tesla_smart_charge",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/DanBendavid/tesla_smart_charge/issues",
   "requirements": [],
-  "version": "1.0.0"
+  "version": "1.1.1"
 }

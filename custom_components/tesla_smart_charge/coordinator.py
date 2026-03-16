@@ -326,6 +326,7 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
     def _handle_source_event(self, event: Any) -> None:
         """React to source entity changes."""
 
+        self.async_update_listeners()
         _LOGGER.debug("Source entity change detected, refreshing optimizer")
         self.hass.async_create_task(self.async_request_refresh())
 

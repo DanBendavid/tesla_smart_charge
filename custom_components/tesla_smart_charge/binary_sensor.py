@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -94,18 +95,14 @@ class TeslaSmartChargeBinarySensor(CoordinatorEntity, BinarySensorEntity):
 def _module_charge_controllable_value(coordinator: TeslaSmartChargeCoordinator) -> bool | None:
     """Return whether module can control charging now."""
 
-    data = coordinator.data
-    if not data:
-        return None
-    return data.module_charge_controllable
+    controllable, _plug_connected, _scheduled_enabled = _live_control_state(coordinator)
+    return controllable
 
 
 def _module_charge_controllable_attrs(coordinator: TeslaSmartChargeCoordinator) -> dict:
     """Return module controllable debug attributes."""
 
-    data = coordinator.data
-    plug_connected = data.plug_connected if data else None
-    scheduled_enabled = data.tesla_scheduled_charging_enabled if data else None
+    _controllable, plug_connected, scheduled_enabled = _live_control_state(coordinator)
 
     if plug_connected is None or scheduled_enabled is None:
         reason = "unknown"
@@ -124,3 +121,33 @@ def _module_charge_controllable_attrs(coordinator: TeslaSmartChargeCoordinator) 
         "scheduled_charging_entity": coordinator.entry.data.get(CONF_SCHEDULED_CHARGING_SWITCH),
     }
 
+
+def _live_control_state(
+    coordinator: TeslaSmartChargeCoordinator,
+) -> tuple[bool | None, bool | None, bool | None]:
+    """Read the two control prerequisites directly from current HA states."""
+
+    plug_state = coordinator.hass.states.get(
+        coordinator.entry.data.get(CONF_CHARGER_CONNECTED_SENSOR)
+    )
+    scheduled_state = coordinator.hass.states.get(
+        coordinator.entry.data.get(CONF_SCHEDULED_CHARGING_SWITCH)
+    )
+
+    plug_connected = _state_on(plug_state)
+    scheduled_enabled = _state_on(scheduled_state)
+    if plug_connected is None or scheduled_enabled is None:
+        return None, plug_connected, scheduled_enabled
+    return (plug_connected and not scheduled_enabled), plug_connected, scheduled_enabled
+
+
+def _state_on(state: Any) -> bool | None:
+    """Return True for on, False for off, None for unknown/unavailable."""
+
+    if not state or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+        return None
+    if state.state == STATE_ON:
+        return True
+    if state.state == STATE_OFF:
+        return False
+    return None
