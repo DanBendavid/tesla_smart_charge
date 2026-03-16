@@ -171,6 +171,9 @@ def _data(coordinator: TeslaSmartChargeCoordinator) -> TeslaSmartChargeData:
     """Return coordinator data with defaults."""
 
     return coordinator.data or TeslaSmartChargeData(
+        module_charge_controllable=None,
+        plug_connected=None,
+        tesla_scheduled_charging_enabled=None,
         remaining_energy_kwh=None,
         estimated_distance_km=None,
         tariff_prices=[],

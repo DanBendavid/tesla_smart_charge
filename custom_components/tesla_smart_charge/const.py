@@ -2,7 +2,7 @@
 
 DOMAIN = "tesla_smart_charge"
 
-PLATFORMS = ["sensor", "number", "select", "switch"]
+PLATFORMS = ["binary_sensor", "sensor", "number", "select", "switch"]
 
 # Config keys for Tesla entity mapping.
 CONF_BATTERY_SENSOR = "battery_sensor"
@@ -13,6 +13,8 @@ CONF_CHARGE_LIMIT_NUMBER = "charge_limit_number"
 CONF_CHARGING_AMPS_NUMBER = "charging_amps_number"
 CONF_RANGE_SENSOR = "range_sensor"
 CONF_TIME_CHARGE_COMPLETE_SENSOR = "time_charge_complete_sensor"
+CONF_CHARGER_CONNECTED_SENSOR = "charger_connected_sensor"
+CONF_SCHEDULED_CHARGING_SWITCH = "scheduled_charging_switch"
 
 # Tariff configuration.
 CONF_TARIFF_SOURCE = "tariff_source"

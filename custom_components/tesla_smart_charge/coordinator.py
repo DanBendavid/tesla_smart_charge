@@ -28,12 +28,14 @@ from .const import (
     CONF_BATTERY_CAPACITY,
     CONF_BATTERY_SENSOR,
     CONF_CHARGE_LIMIT_NUMBER,
+    CONF_CHARGER_CONNECTED_SENSOR,
     CONF_CHARGER_POWER_SENSOR,
     CONF_CHARGER_SWITCH,
     CONF_CHARGING_AMPS_NUMBER,
     CONF_CHARGING_SENSOR,
     CONF_MAX_CHARGING_POWER,
     CONF_RANGE_SENSOR,
+    CONF_SCHEDULED_CHARGING_SWITCH,
     CONF_TARIFF_ATTRIBUTE,
     CONF_TARIFF_REST_HEADERS,
     CONF_TARIFF_REST_JSON_PATH,
@@ -90,6 +92,7 @@ _SOBRY_HEADERS = {
     "Accept": "application/json",
 }
 _DAY_AHEAD_PUBLISH_HOUR = 12
+_FORCE_CHARGE_LIMIT_MARGIN_SOC = 1.0
 
 _ENERGY_INPUT_KEYS = {
     INPUT_TARGET_SOC,
@@ -110,6 +113,8 @@ class TeslaVehicleState:
     time_charge_complete: datetime | None = None
     charge_limit: float | None = None
     charging_amps: float | None = None
+    charger_connected: bool | None = None
+    scheduled_charging_enabled: bool | None = None
 
 
 @dataclass
@@ -144,6 +149,9 @@ class TeslaSmartChargeInputs:
 class TeslaSmartChargeData:
     """Coordinator data used by sensors."""
 
+    module_charge_controllable: bool | None
+    plug_connected: bool | None
+    tesla_scheduled_charging_enabled: bool | None
     remaining_energy_kwh: float | None
     estimated_distance_km: float | None
     tariff_prices: list[dict]
@@ -186,6 +194,8 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
         self._enabled_slots: list[TariffSlot] = []
         self._bonus_slots: set[TariffSlot] = set()
         self._last_charging_power_kw: float | None = None
+        self._temporary_charge_limit_restore_soc: float | None = None
+        self._hold_restored_charge_limit = False
 
         self._battery_capacity_kwh = _safe_float(entry.data.get(CONF_BATTERY_CAPACITY)) or 0.0
         self._vehicle_efficiency_wh_per_km = (
@@ -233,6 +243,8 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
             self.entry.data.get(CONF_CHARGING_AMPS_NUMBER),
             self.entry.data.get(CONF_RANGE_SENSOR),
             self.entry.data.get(CONF_TIME_CHARGE_COMPLETE_SENSOR),
+            self.entry.data.get(CONF_CHARGER_CONNECTED_SENSOR),
+            self.entry.data.get(CONF_SCHEDULED_CHARGING_SWITCH),
         ]
         if self._tariff_source == TARIFF_SOURCE_SENSOR:
             entity_ids.append(self.entry.data.get(CONF_TARIFF_SENSOR))
@@ -273,16 +285,18 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
         """Apply optimized schedule to the charger switch."""
 
         if not self.inputs.smart_charging_enabled:
+            await self._async_set_charge_limit(apply_configured_target=False)
             return
 
         charger_switch = self.entry.data.get(CONF_CHARGER_SWITCH)
         if not charger_switch:
+            await self._async_set_charge_limit(apply_configured_target=False)
             return
 
         if self.inputs.allow_immediate_charge:
             _LOGGER.debug("Immediate charge enabled; turning on charger")
             await self._async_turn_on(charger_switch)
-            await self._async_set_charge_limit()
+            await self._async_set_charge_limit(force_for_active_charge=True)
             return
 
         now = dt_util.now()
@@ -303,7 +317,10 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
         else:
             await self._async_turn_off(charger_switch)
 
-        await self._async_set_charge_limit(use_bonus_target=in_bonus_slot)
+        await self._async_set_charge_limit(
+            use_bonus_target=in_bonus_slot,
+            force_for_active_charge=in_slot,
+        )
 
     @callback
     def _handle_source_event(self, event: Any) -> None:
@@ -340,6 +357,7 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
             estimated_distance_km = self._estimate_distance_after_charge(
                 vehicle_state, required_energy_kwh
             )
+            module_charge_controllable = self._is_module_charge_controllable(vehicle_state)
 
             optimizer_result, horizon_slots, bonus_slots = self._optimize_ready_window(
                 required_energy_kwh=required_energy_kwh,
@@ -379,6 +397,9 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
                     cheapest_slot = min(future_slots, key=lambda item: item.price)
 
             return TeslaSmartChargeData(
+                module_charge_controllable=module_charge_controllable,
+                plug_connected=vehicle_state.charger_connected,
+                tesla_scheduled_charging_enabled=vehicle_state.scheduled_charging_enabled,
                 remaining_energy_kwh=remaining_energy_kwh,
                 estimated_distance_km=estimated_distance_km,
                 tariff_prices=tariff_prices,
@@ -614,6 +635,17 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
             (bonus_soc - current_soc) * self._battery_capacity_kwh / 100.0,
         )
         return max(0.0, total_bonus_energy_kwh - required_energy_kwh)
+
+    def _is_module_charge_controllable(self, vehicle_state: TeslaVehicleState) -> bool | None:
+        """Return whether module control prerequisites are met."""
+
+        if (
+            vehicle_state.charger_connected is None
+            or vehicle_state.scheduled_charging_enabled is None
+        ):
+            return None
+
+        return vehicle_state.charger_connected and not vehicle_state.scheduled_charging_enabled
 
     def _normalize_input_value(self, key: str, value: Any) -> Any:
         """Normalize input values."""
@@ -969,6 +1001,12 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
         charging_amps_state = self.hass.states.get(
             self.entry.data.get(CONF_CHARGING_AMPS_NUMBER)
         )
+        charger_connected_state = self.hass.states.get(
+            self.entry.data.get(CONF_CHARGER_CONNECTED_SENSOR)
+        )
+        scheduled_charging_state = self.hass.states.get(
+            self.entry.data.get(CONF_SCHEDULED_CHARGING_SWITCH)
+        )
 
         soc = _safe_float(_state_value(battery_state))
         charging = _state_on(charging_state)
@@ -978,6 +1016,8 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
         time_charge_complete = _parse_datetime(_state_value(time_charge_state))
         charge_limit = _safe_float(_state_value(charge_limit_state))
         charging_amps = _safe_float(_state_value(charging_amps_state))
+        charger_connected = _state_on(charger_connected_state)
+        scheduled_charging_enabled = _state_on(scheduled_charging_state)
 
         return TeslaVehicleState(
             soc=soc,
@@ -988,6 +1028,8 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
             time_charge_complete=time_charge_complete,
             charge_limit=charge_limit,
             charging_amps=charging_amps,
+            charger_connected=charger_connected,
+            scheduled_charging_enabled=scheduled_charging_enabled,
         )
 
     async def _async_turn_on(self, entity_id: str) -> None:
@@ -1018,16 +1060,87 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
             blocking=False,
         )
 
-    async def _async_set_charge_limit(self, use_bonus_target: bool = False) -> None:
-        """Set charge limit to minimum SOC or opportunistic SOC target."""
+    async def _async_set_charge_limit(
+        self,
+        use_bonus_target: bool = False,
+        force_for_active_charge: bool = False,
+        apply_configured_target: bool = True,
+    ) -> None:
+        """Set charge limit, with optional temporary bump while active charging is requested."""
 
-        target_soc = self._bonus_target_soc() if use_bonus_target else self.inputs.target_soc
         charge_limit_entity = self.entry.data.get(CONF_CHARGE_LIMIT_NUMBER)
-        if target_soc is None or not charge_limit_entity:
+        if not charge_limit_entity:
             return
 
         state = self.hass.states.get(charge_limit_entity)
         current = _safe_float(_state_value(state))
+
+        if force_for_active_charge:
+            self._hold_restored_charge_limit = False
+
+        if (
+            not force_for_active_charge
+            and self._temporary_charge_limit_restore_soc is not None
+        ):
+            restore_soc = self._temporary_charge_limit_restore_soc
+            if current is not None and abs(current - restore_soc) < 1:
+                self._temporary_charge_limit_restore_soc = None
+                self._hold_restored_charge_limit = True
+                return
+
+            await self.hass.services.async_call(
+                "number",
+                "set_value",
+                {ATTR_ENTITY_ID: charge_limit_entity, "value": round(restore_soc)},
+                blocking=False,
+            )
+            _LOGGER.debug(
+                "Restoring original charge limit to %.1f%% after temporary bump.",
+                restore_soc,
+            )
+            self._temporary_charge_limit_restore_soc = None
+            self._hold_restored_charge_limit = True
+            return
+
+        if not force_for_active_charge and self._hold_restored_charge_limit:
+            return
+
+        if not apply_configured_target:
+            return
+
+        configured_target_soc = (
+            self._bonus_target_soc() if use_bonus_target else self.inputs.target_soc
+        )
+        if configured_target_soc is None:
+            return
+
+        target_soc = configured_target_soc
+        if force_for_active_charge:
+            soc = self._read_vehicle_state().soc
+            if (
+                soc is not None
+                and configured_target_soc is not None
+                and configured_target_soc <= soc
+                and (current is None or current <= soc)
+            ):
+                if self._temporary_charge_limit_restore_soc is None and current is not None:
+                    self._temporary_charge_limit_restore_soc = current
+                bumped_target = min(
+                    100.0,
+                    max(configured_target_soc, soc + _FORCE_CHARGE_LIMIT_MARGIN_SOC),
+                )
+                if bumped_target > configured_target_soc:
+                    _LOGGER.debug(
+                        (
+                            "Temporarily increasing charge limit from %.1f%% to %.1f%% "
+                            "to allow charging (SOC=%.1f%%)."
+                        ),
+                        configured_target_soc,
+                        bumped_target,
+                        soc,
+                    )
+                    target_soc = bumped_target
+
         if current is not None and abs(current - target_soc) < 1:
             return
 

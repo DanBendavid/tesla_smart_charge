@@ -14,12 +14,14 @@ from .const import (
     CONF_BATTERY_CAPACITY,
     CONF_BATTERY_SENSOR,
     CONF_CHARGE_LIMIT_NUMBER,
+    CONF_CHARGER_CONNECTED_SENSOR,
     CONF_CHARGER_POWER_SENSOR,
     CONF_CHARGER_SWITCH,
     CONF_CHARGING_AMPS_NUMBER,
     CONF_CHARGING_SENSOR,
     CONF_MAX_CHARGING_POWER,
     CONF_RANGE_SENSOR,
+    CONF_SCHEDULED_CHARGING_SWITCH,
     CONF_TARIFF_ATTRIBUTE,
     CONF_TARIFF_REST_HEADERS,
     CONF_TARIFF_REST_JSON_PATH,
@@ -49,6 +51,17 @@ _ENTITY_HINTS: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
 }
 
+_OPTIONAL_ENTITY_HINTS: dict[str, tuple[str, tuple[str, ...]]] = {
+    CONF_CHARGER_CONNECTED_SENSOR: (
+        "binary_sensor",
+        ("plugged", "charger_connected", "charge_port", "charger"),
+    ),
+    CONF_SCHEDULED_CHARGING_SWITCH: (
+        "switch",
+        ("scheduled_charging", "charge_schedule", "scheduled_departure", "departure"),
+    ),
+}
+
 
 class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Tesla Smart Charge."""
@@ -68,7 +81,11 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_tariff()
 
         detected = self._auto_detect_tesla_entities()
-        defaults = {**detected, **{key: self._data[key] for key in _ENTITY_HINTS if key in self._data}}
+        all_entity_keys = list(_ENTITY_HINTS) + list(_OPTIONAL_ENTITY_HINTS)
+        defaults = {
+            **detected,
+            **{key: self._data[key] for key in all_entity_keys if key in self._data},
+        }
 
         schema_fields: dict[Any, Any] = {}
         for key, (entity_domain, _) in _ENTITY_HINTS.items():
@@ -80,6 +97,16 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             else:
                 schema_fields[vol.Required(key)] = selector.EntitySelector(selector_config)
+
+        for key, (entity_domain, _) in _OPTIONAL_ENTITY_HINTS.items():
+            selector_config = selector.EntitySelectorConfig(domain=entity_domain)
+            default = defaults.get(key)
+            if default:
+                schema_fields[vol.Optional(key, default=default)] = selector.EntitySelector(
+                    selector_config
+                )
+            else:
+                schema_fields[vol.Optional(key)] = selector.EntitySelector(selector_config)
 
         schema = vol.Schema(schema_fields)
 
@@ -96,7 +123,8 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         }
 
         detected: dict[str, str] = {}
-        for key, (expected_domain, keywords) in _ENTITY_HINTS.items():
+        all_entity_hints = {**_ENTITY_HINTS, **_OPTIONAL_ENTITY_HINTS}
+        for key, (expected_domain, keywords) in all_entity_hints.items():
             best_score = -1
             best_entity_id: str | None = None
 
