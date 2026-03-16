@@ -1,127 +1,104 @@
-# Tesla Smart Charge
 
-Custom integration Home Assistant to optimize Tesla charging from tariff slots.
+# ⚡ Tesla Smart Charge
 
-## About
+[](https://github.com/hacs/integration)
+[](https://opensource.org/licenses/MIT)
+[](https://www.home-assistant.io/)
 
-Tesla Smart Charge is a Home Assistant custom integration that schedules Tesla charging on the cheapest tariff periods while honoring your readiness target (`Minimum SOC By Ready Time` + `Ready By Hour`).  
-It also supports optional low-price bonus charging (`SOC If Cheap`) and provides dashboard-friendly sensors/services for monitoring and control.
+**Optimize your Tesla charging based on dynamic electricity tariffs.** This Home Assistant integration automatically schedules charging sessions during the cheapest windows while ensuring your car is ready exactly when you need it.
 
-## Features
+-----
 
-- Automatic optimization of charging slots based on price.
-- Two-stage strategy: `Minimum SOC By Ready Time` before `Ready By Hour`, then `SOC If Cheap` bonus slots on cheap prices without ready-hour limit.
-- Multiple tariff sources: sensor attribute (`prices` by default), REST endpoint (JSON), and spot raw source (CU4 Particulier TTC, sliding 24h).
-- Inputs exposed as entities (`number`, `switch`, `select`) for easy dashboard control.
-- Built-in service to install a Lovelace dashboard template.
-- When merged into an existing dashboard, the integration creates a dedicated `Smart Charge` view.
+## ✨ Key Features
 
-## Prerequisites
+  * **Dual-Stage Optimization:**
+    1.  **Readiness Priority:** Reaches your `Minimum SOC` by your `Ready By Hour`.
+    2.  **Bonus "Cheap" Charging:** Continues to `SOC If Cheap` only during ultra-low price windows, regardless of time.
+  * **Flexible Tariff Sources:** Supports Sensor Attributes, REST Endpoints (JSON), and Raw Spot prices (CU4 Particulier TTC).
+  * **Smart Automation:** Automatically bumps the Tesla charge limit by $+1\%$ if needed to wake the car and trigger a session.
+  * **Plug & Play Dashboard:** Built-in service to generate a dedicated Lovelace view with `ApexCharts` integration.
 
-- Home Assistant with the Tesla entities you want to control/map (SOC sensor, charging status, charger switch, charging power, charge limit, amps, etc.).
-- A tariff source that exposes upcoming prices (`Sensor Attribute`, `REST Endpoint`, or `Spot Raw` in this integration).
-- For dashboard templates using `custom:apexcharts-card`: install `ApexCharts Card` from HACS (`Frontend` category).
+-----
 
-## Installation
+## 🛠 Prerequisites
 
-### HACS (Custom repository)
+1.  **Tesla Integration:** An active Tesla integration (Official or Custom) providing SOC, Amps, Charger Switch, and Plug Status.
+2.  **Tariff Data:** A sensor or API providing upcoming price data.
+3.  **Frontend (Optional):** Install `ApexCharts Card` via HACS for the best visual experience in the dashboard.
 
-1. Push this integration to a public GitHub repository.
-2. In Home Assistant, open HACS.
-3. Open the menu (3 dots) -> `Custom repositories`.
-4. Add your repository URL with category `Integration`.
-5. Install `Tesla Smart Charge` from HACS.
-6. Restart Home Assistant.
+-----
 
-### Manual
+## 🚀 Installation
 
-1. Copy this folder to:
-`/config/custom_components/tesla_smart_charge`
-2. Restart Home Assistant.
+### Option 1: HACS (Recommended)
 
-## Configuration
+1.  Open **HACS** \> **Integrations**.
+2.  Click the 3 dots (top right) \> **Custom repositories**.
+3.  Paste this Repo URL and select **Integration** as the category.
+4.  Click **Install** and **Restart** Home Assistant.
 
-1. Go to `Settings` -> `Devices & Services` -> `Add Integration`.
-2. Add `Tesla Smart Charge`.
-3. Map Tesla-related entities: battery SOC sensor, charging binary sensor, charger switch, charger power sensor, charge limit number, charging amps number, range sensor, time charge complete sensor, `charger_connected_sensor` (plug connected), and `scheduled_charging_sensor` (Tesla scheduled charging).
-4. Choose a tariff source: `Sensor Attribute`, `REST Endpoint`, or `Spot Raw`.
-5. Set constants: battery capacity (kWh), vehicle efficiency (Wh/km), max charging power (kW), whether to install the dashboard template now, and whether to add the Tesla view to an existing dashboard.
+### Option 2: Manual
 
-## Main entities
+1.  Copy the `tesla_smart_charge` folder to your `/config/custom_components/` directory.
+2.  **Restart** Home Assistant.
 
-### Numbers
+-----
 
-- `Minimum SOC By Ready Time`
-- `Ready By Hour`
-- `SOC If Cheap`
-- `Cheap Price Threshold` (`0.0` to `0.2`)
+## ⚙️ Configuration
 
-### Switches
+1.  Navigate to **Settings** \> **Devices & Services** \> **Add Integration**.
+2.  Search for **Tesla Smart Charge**.
+3.  **Entity Mapping:** Map your Tesla's sensors (SOC, Charge Limit, Amps, etc.).
+4.  **Constants:** Define battery capacity (kWh), vehicle efficiency (Wh/km), and max power (kW).
 
-- `Smart Charging Enabled`
-- `Allow Immediate Charge`
+-----
 
-### Binary sensors
+## 📊 Core Entities
 
-- `Module Charge Controllable` (true when plug is connected and Tesla scheduled charging is disabled)
+| Icon | Entity Type | Name | Purpose |
+| :--- | :--- | :--- | :--- |
+| 🔢 | **Number** | `Minimum SOC By Ready Time` | Target battery level for departure. |
+| 🕒 | **Number** | `Ready By Hour` | Deadline for the Minimum SOC. |
+| 💰 | **Number** | `Cheap Price Threshold` | Price ceiling for "Bonus" charging. |
+| ⚡ | **Switch** | `Smart Charging Enabled` | Master toggle for the optimizer. |
+| 🛰️ | **Binary Sensor** | `Module Charge Controllable` | Green if plug is in & Tesla scheduler is off. |
 
-### Sensors
+-----
 
-- `Remaining Energy Needed`
-- `Estimated Distance After Charge`
-- `Tariff Prices 15min`
-- `Cheapest Next Slot`
-- `Optimized Start Time`
-- `Optimized End Time`
-- `Optimized Cost`
-- `Optimized Energy`
-- `Optimized Schedule` (with `schedule` attribute)
+## 🛠 Services
 
-## Services
+| Service | Description |
+| :--- | :--- |
+| `reoptimize` | Manually triggers a recalculation of the charging schedule. |
+| `apply_control` | Forces the current state (Start/Stop) to the vehicle. |
+| `install_dashboard_template` | Generates a YAML dashboard file in your config. |
 
-- `tesla_smart_charge.reoptimize`
-- `tesla_smart_charge.apply_control`
-- `tesla_smart_charge.install_dashboard_template`
-
-Example to install dashboard template:
+**Example Dashboard Installation:**
 
 ```yaml
 service: tesla_smart_charge.install_dashboard_template
 data:
   filename: dashboards/tesla_smart_charge.yaml
+  # existing_dashboard_filename: ui-lovelace.yaml (Optional)
 ```
 
-Example to add Tesla view into an existing dashboard file:
+-----
 
-```yaml
-service: tesla_smart_charge.install_dashboard_template
-data:
-  existing_dashboard_filename: ui-lovelace.yaml
-```
+## 💡 Technical Notes
 
-## Tariff formats
+> [\!IMPORTANT]
+> **Controllability:** The `Module Charge Controllable` sensor must be `True` for the integration to work. This requires the car to be **plugged in** and the **internal Tesla scheduled charging to be disabled** (to avoid conflicts).
 
-Accepted tariff payloads include:
+  * **Spot Prices:** Tomorrow's prices are fetched after `13:10` local time. The optimizer looks ahead up to 48 hours to find the best slots.
+  * **Efficiency:** Calculations use your defined `Wh/km` and battery `kWh` to estimate the duration needed to reach targets.
+  * **JSON Format:** The integration expects a list of objects with timestamps (`start`, `end`) and a `price` key.
 
-- A list of objects with timestamps and prices.
-- Common timestamp keys: `start`, `timestamp`, `time`, `from`, `date`
-- Common end keys: `end`, `to`
-- Common price keys: `price`, `value`, `price_eur_kwh`, `price_eur_per_kwh`, `price_ttc_eur_kwh`
+-----
 
-Minimal example:
+## 🤝 Contributing
 
-```json
-[
-  {"start":"2026-03-15T10:00:00+01:00","end":"2026-03-15T10:15:00+01:00","price":0.129},
-  {"start":"2026-03-15T10:15:00+01:00","end":"2026-03-15T10:30:00+01:00","price":0.136}
-]
-```
+Feedback and Pull Requests are welcome\! Feel free to open an issue for bug reports or feature requests.
 
-## Notes
+-----
 
-- If current SOC is already above `Minimum SOC By Ready Time`, required energy can be `0`.
-- `Ready By Hour` applies to today if the hour is still ahead, otherwise it applies to tomorrow.
-- Spot day-ahead tomorrow prices are fetched for J+1 (`00:00` to `23:45`) after the publication window (guarded from `13:10` local time), and the optimizer uses a spot horizon from `now` to `J+2 00:00` (end of tomorrow).
-- Bonus slots are only used when `SOC If Cheap` is above current/required SOC and `Cheap Price Threshold` matches available future prices.
-- If active charging is requested (slot or immediate mode) and charge limit is at/below current SOC, the integration temporarily bumps charge limit to `SOC + 1%` so charging can start, then restores the original value when active demand ends.
-- `Module Charge Controllable` depends on both required mappings: `charger_connected_sensor` and `scheduled_charging_sensor`.
+**Would you like me to add a "Troubleshooting" section or perhaps a visual example of the YAML configuration for the tariff sensor?**
