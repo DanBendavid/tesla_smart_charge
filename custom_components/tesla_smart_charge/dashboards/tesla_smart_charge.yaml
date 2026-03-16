@@ -1,7 +1,7 @@
 title: Tesla Smart Charge
 views:
-  - title: Tesla Smart Charge
-    path: tesla-smart-charge
+  - title: Smart Charge
+    path: smart-charge
     icon: mdi:ev-station
     cards:
       - type: custom:apexcharts-card

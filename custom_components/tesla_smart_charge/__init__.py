@@ -32,6 +32,10 @@ from .coordinator import TeslaSmartChargeCoordinator
 _LOGGER = logging.getLogger(__name__)
 _DEFAULT_DASHBOARD_FILENAME = "dashboards/tesla_smart_charge.yaml"
 _DASHBOARD_TEMPLATE_PATH = Path(__file__).parent / "dashboards" / "tesla_smart_charge.yaml"
+_SMART_CHARGE_VIEW_TITLE = "Smart Charge"
+_SMART_CHARGE_VIEW_PATH = "smart-charge"
+_LEGACY_SMART_CHARGE_VIEW_TITLE = "Tesla Smart Charge"
+_LEGACY_SMART_CHARGE_VIEW_PATH = "tesla-smart-charge"
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
@@ -271,6 +275,17 @@ async def _async_add_template_view_to_existing_dashboard(
 
             view_path = str(view.get("path")).strip() if view.get("path") else ""
             view_title = str(view.get("title")).strip() if view.get("title") else ""
+            is_smart_charge_view = (
+                view_path == _SMART_CHARGE_VIEW_PATH
+                or view_title == _SMART_CHARGE_VIEW_TITLE
+            )
+            if is_smart_charge_view and (
+                _SMART_CHARGE_VIEW_PATH in existing_paths
+                or _LEGACY_SMART_CHARGE_VIEW_PATH in existing_paths
+                or _SMART_CHARGE_VIEW_TITLE in existing_titles
+                or _LEGACY_SMART_CHARGE_VIEW_TITLE in existing_titles
+            ):
+                continue
             if (view_path and view_path in existing_paths) or (
                 view_title and view_title in existing_titles
             ):
@@ -312,15 +327,15 @@ async def _async_add_template_view_to_existing_dashboard(
 
     if views_added:
         message = (
-            f"Added {views_added} Tesla Smart Charge view(s) to `{filename}`.\n\n"
+            f"Added {views_added} Smart Charge view(s) to `{filename}`.\n\n"
             "Reload YAML configuration or restart Home Assistant to apply changes."
         )
-        title = "Tesla Smart Charge view added to existing dashboard"
+        title = "Smart Charge view added to existing dashboard"
     else:
         message = (
-            f"No change in `{filename}` because the Tesla Smart Charge view is already present."
+            f"No change in `{filename}` because the Smart Charge view is already present."
         )
-        title = "Tesla Smart Charge dashboard view already present"
+        title = "Smart Charge dashboard view already present"
 
     _LOGGER.warning(message)
     try:

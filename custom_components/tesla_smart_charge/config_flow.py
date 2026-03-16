@@ -7,8 +7,14 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.const import CONF_FILENAME
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
+
+try:
+    from homeassistant.components.lovelace.const import LOVELACE_DATA
+except ImportError:  # pragma: no cover - compatibility fallback
+    LOVELACE_DATA = "lovelace"
 
 from .const import (
     CONF_ADD_TO_EXISTING_DASHBOARD,
@@ -334,15 +340,74 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._data[CONF_EXISTING_DASHBOARD_FILENAME] = filename
                 return self.async_create_entry(title="Tesla Smart Charge", data=self._data)
 
-        schema = vol.Schema(
-            {
-                vol.Required(
-                    CONF_EXISTING_DASHBOARD_FILENAME,
-                    default=self._data.get(CONF_EXISTING_DASHBOARD_FILENAME, "ui-lovelace.yaml"),
-                ): selector.TextSelector(),
-            }
-        )
+        default_filename = str(
+            self._data.get(CONF_EXISTING_DASHBOARD_FILENAME, "ui-lovelace.yaml")
+        ).strip()
+        options = self._yaml_dashboard_filename_options()
+
+        if options:
+            option_values = [str(option["value"]) for option in options]
+            if default_filename not in option_values:
+                default_filename = option_values[0]
+            schema = vol.Schema(
+                {
+                    vol.Required(
+                        CONF_EXISTING_DASHBOARD_FILENAME,
+                        default=default_filename,
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=options)
+                    ),
+                }
+            )
+        else:
+            schema = vol.Schema(
+                {
+                    vol.Required(
+                        CONF_EXISTING_DASHBOARD_FILENAME,
+                        default=default_filename,
+                    ): selector.TextSelector(),
+                }
+            )
 
         return self.async_show_form(
             step_id="existing_dashboard", data_schema=schema, errors=errors
         )
+
+    def _yaml_dashboard_filename_options(self) -> list[dict[str, str]]:
+        """Return YAML dashboard filenames currently known by Lovelace."""
+
+        lovelace_data = self.hass.data.get(LOVELACE_DATA)
+        dashboards = getattr(lovelace_data, "dashboards", None)
+        if not isinstance(dashboards, dict):
+            return []
+
+        options_by_filename: dict[str, str] = {}
+        for url_path, lovelace_config in dashboards.items():
+            config = getattr(lovelace_config, "config", None)
+            if not isinstance(config, dict):
+                continue
+
+            filename = config.get(CONF_FILENAME)
+            if not isinstance(filename, str) or not filename.strip():
+                continue
+            filename = filename.strip()
+
+            raw_title = config.get("title")
+            if isinstance(raw_title, str) and raw_title.strip():
+                title = raw_title.strip()
+            elif isinstance(url_path, str) and url_path.strip():
+                title = url_path.strip()
+            else:
+                title = "Overview"
+
+            options_by_filename.setdefault(filename, f"{title} ({filename})")
+
+        if not options_by_filename:
+            return []
+
+        return [
+            {"value": filename, "label": label}
+            for filename, label in sorted(
+                options_by_filename.items(), key=lambda item: item[1].lower()
+            )
+        ]

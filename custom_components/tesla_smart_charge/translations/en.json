@@ -54,7 +54,7 @@
       },
       "existing_dashboard": {
         "title": "Existing dashboard file",
-        "description": "Provide the YAML dashboard filename where the Tesla view should be added.",
+        "description": "Select a YAML dashboard filename where the Tesla view should be added. If none is listed, enter it manually.",
         "data": {
           "existing_dashboard_filename": "Existing dashboard filename"
         }

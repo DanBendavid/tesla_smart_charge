@@ -14,6 +14,7 @@ It also supports optional low-price bonus charging (`SOC If Cheap`) and provides
 - Multiple tariff sources: sensor attribute (`prices` by default), REST endpoint (JSON), and spot raw source (CU4 Particulier TTC, sliding 24h).
 - Inputs exposed as entities (`number`, `switch`, `select`) for easy dashboard control.
 - Built-in service to install a Lovelace dashboard template.
+- When merged into an existing YAML dashboard, the integration creates a dedicated `Smart Charge` view.
 
 ## Prerequisites
 
