@@ -11,11 +11,6 @@ from homeassistant.const import CONF_FILENAME
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 
-try:
-    from homeassistant.components.lovelace.const import LOVELACE_DATA
-except ImportError:  # pragma: no cover - compatibility fallback
-    LOVELACE_DATA = "lovelace"
-
 from .const import (
     CONF_ADD_TO_EXISTING_DASHBOARD,
     CONF_BATTERY_CAPACITY,
@@ -70,6 +65,7 @@ _ENTITY_HINTS: dict[str, tuple[str, tuple[str, ...]]] = {
         ("scheduled_charging", "charge_schedule"),
     ),
 }
+_LOVELACE_DATA_KEY = "lovelace"
 
 
 class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -376,7 +372,7 @@ class TeslaSmartChargeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _yaml_dashboard_filename_options(self) -> list[dict[str, str]]:
         """Return YAML dashboard filenames currently known by Lovelace."""
 
-        lovelace_data = self.hass.data.get(LOVELACE_DATA)
+        lovelace_data = self.hass.data.get(_LOVELACE_DATA_KEY)
         dashboards = getattr(lovelace_data, "dashboards", None)
         if not isinstance(dashboards, dict):
             return []
