@@ -52,7 +52,7 @@ async def async_setup_entry(
     descriptions = [
         TeslaSmartChargeSensorDescription(
             key="remaining_energy_needed_kwh",
-            name="Remaining Energy Needed",
+            name="Energy Deficit",
             device_class=SensorDeviceClass.ENERGY,
             state_class=None,
             value_fn=lambda coord: _round_or_none(_data(coord).remaining_energy_kwh, 2),
@@ -60,7 +60,7 @@ async def async_setup_entry(
         ),
         TeslaSmartChargeSensorDescription(
             key="estimated_distance_after_charge",
-            name="Estimated Distance After Charge",
+            name="Est. Range at Target SOC",
             device_class=SensorDeviceClass.DISTANCE,
             state_class=SensorStateClass.MEASUREMENT,
             value_fn=_distance_value,
@@ -68,7 +68,7 @@ async def async_setup_entry(
         ),
         TeslaSmartChargeSensorDescription(
             key="tariff_prices_15min",
-            name="Tariff Prices 15min",
+            name="Current Tariff (15m)",
             device_class=None,
             state_class=None,
             value_fn=lambda coord: len(_data(coord).tariff_prices or []),
@@ -76,7 +76,7 @@ async def async_setup_entry(
         ),
         TeslaSmartChargeSensorDescription(
             key="cheapest_next_slot",
-            name="Cheapest Next Slot",
+            name="Next Best Rate",
             device_class=SensorDeviceClass.TIMESTAMP,
             state_class=None,
             value_fn=_cheapest_slot_value,
@@ -84,21 +84,21 @@ async def async_setup_entry(
         ),
         TeslaSmartChargeSensorDescription(
             key="optimized_start_time",
-            name="Optimized Start Time",
+            name="Next Start Time",
             device_class=SensorDeviceClass.TIMESTAMP,
             state_class=None,
             value_fn=lambda coord: _data(coord).optimized_start,
         ),
         TeslaSmartChargeSensorDescription(
             key="optimized_end_time",
-            name="Optimized End Time",
+            name="Finish Time",
             device_class=SensorDeviceClass.TIMESTAMP,
             state_class=None,
             value_fn=lambda coord: _data(coord).optimized_end,
         ),
         TeslaSmartChargeSensorDescription(
             key="optimized_cost",
-            name="Optimized Cost",
+            name="Total Estimated Cost",
             device_class=SensorDeviceClass.MONETARY,
             state_class=None,
             value_fn=lambda coord: _round_or_none(_data(coord).optimized_cost, 2),
@@ -106,7 +106,7 @@ async def async_setup_entry(
         ),
         TeslaSmartChargeSensorDescription(
             key="optimized_energy_kwh",
-            name="Optimized Energy",
+            name="Energy to Add",
             device_class=SensorDeviceClass.ENERGY,
             state_class=None,
             value_fn=lambda coord: _round_or_none(_data(coord).optimized_energy_kwh, 2),
@@ -114,7 +114,7 @@ async def async_setup_entry(
         ),
         TeslaSmartChargeSensorDescription(
             key="optimized_schedule",
-            name="Optimized Schedule",
+            name="Active Charge Slots",
             device_class=None,
             state_class=None,
             value_fn=_schedule_enabled_count,

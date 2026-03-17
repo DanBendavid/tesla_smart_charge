@@ -7,7 +7,7 @@ views:
       - type: custom:apexcharts-card
         header:
           show: true
-          title: Prix & slots optimises (24h)
+          title: Rates & Optimized Slots (24h)
           show_states: false
         graph_span: 24h
         span:
@@ -23,8 +23,8 @@ views:
             min: 20
             max: 100
         series:
-          - entity: sensor.tesla_smart_charge_tariff_prices_15min
-            name: Tarif
+          - entity: sensor.tesla_smart_charge_current_tariff_15m
+            name: Electricity Rate
             type: line
             color: "#4FC3F7"
             show:
@@ -34,8 +34,8 @@ views:
             data_generator: >-
               return (entity.attributes.prices || []).map((p) => [new
               Date(p.start).getTime(), p.price]);
-          - entity: sensor.tesla_smart_charge_optimized_schedule
-            name: Slots Base
+          - entity: sensor.tesla_smart_charge_active_charge_slots
+            name: Primary Slots
             type: column
             color: "#66BB6A"
             show:
@@ -46,8 +46,8 @@ views:
               return (entity.attributes.schedule || []).filter((s) => s.enabled &&
               (s.stage || 'required') !== 'cheap_bonus').map((s) => [new
               Date(s.start).getTime(), s.price]);
-          - entity: sensor.tesla_smart_charge_optimized_schedule
-            name: Slots Bonus
+          - entity: sensor.tesla_smart_charge_active_charge_slots
+            name: Optimal Slots
             type: column
             color: "#FFA726"
             show:
@@ -58,8 +58,8 @@ views:
               return (entity.attributes.schedule || []).filter((s) => s.enabled &&
               (s.stage || 'required') === 'cheap_bonus').map((s) => [new
               Date(s.start).getTime(), s.price]);
-          - entity: sensor.tesla_smart_charge_optimized_schedule
-            name: Batterie (%)
+          - entity: sensor.tesla_smart_charge_active_charge_slots
+            name: Battery Level (%)
             type: line
             color: "#AB47BC"
             show:
@@ -71,16 +71,16 @@ views:
               && s.soc_end !== undefined).map((s) => [new Date(s.end ||
               s.start).getTime(), s.soc_end]);
       - type: markdown
-        title: Timeline Charge
+        title: Charging Timeline
         content: |-
-          {% set slots = state_attr('sensor.tesla_smart_charge_optimized_schedule', 'schedule') or [] %}
+          {% set slots = state_attr('sensor.tesla_smart_charge_active_charge_slots', 'schedule') or [] %}
           {% set enabled = slots | selectattr('enabled', 'eq', true) | sort(attribute='start') | list %}
           {% if enabled | count == 0 %}
-          Aucun slot de charge active.
+          No active charging slots.
           {% else %}
           {% set ns = namespace(groups=[], cur=None) %}
           {% for s in enabled %}
-          {% set t = 'Bonus' if s.stage|default('required') == 'cheap_bonus' else 'Base' %}
+          {% set t = 'Optimal' if s.stage|default('required') == 'cheap_bonus' else 'Primary' %}
           {% if ns.cur is none %}
           {% set ns.cur = {'start': s.start, 'end': s.end, 'prices': [s.price|float(0)], 'type': t} %}
           {% elif s.start == ns.cur.end and t == ns.cur.type %}
@@ -91,48 +91,48 @@ views:
           {% endif %}
           {% endfor %}
           {% if ns.cur is not none %}{% set ns.groups = ns.groups + [ns.cur] %}{% endif %}
-          | Debut | Fin | Prix moyen (EUR/kWh) | Slots | Type |
+          | Start | End | Avg. Rate (EUR/kWh) | Slots | Status |
           |---|---|---:|---:|---|
           {% for g in ns.groups[:16] %}
           | {{ as_local(as_datetime(g.start)).strftime('%d/%m %H:%M') }} | {{ as_local(as_datetime(g.end)).strftime('%H:%M') }} | {{ '%.3f'|format((g.prices | sum) / (g.prices | count)) }} | {{ g.prices | count }} | {{ g.type }} |
           {% endfor %}
           {% endif %}
       - type: entities
-        title: Capteurs
+        title: Sensors
         show_header_toggle: false
         entities:
-          - entity: sensor.tesla_smart_charge_cheapest_next_slot
-            name: Cheapest Next Slot
-          - entity: sensor.tesla_smart_charge_estimated_distance_after_charge
-            name: Estimated Distance After Charge
-          - entity: sensor.tesla_smart_charge_optimized_cost
-            name: Optimized Cost
-          - entity: sensor.tesla_smart_charge_optimized_end_time
-            name: Optimized End Time
-          - entity: sensor.tesla_smart_charge_optimized_energy
-            name: Optimized Energy
-          - entity: sensor.tesla_smart_charge_optimized_schedule
-            name: Optimized Schedule
-          - entity: sensor.tesla_smart_charge_optimized_start_time
-            name: Optimized Start Time
-          - entity: sensor.tesla_smart_charge_remaining_energy_needed
-            name: Remaining Energy Needed
-          - entity: sensor.tesla_smart_charge_tariff_prices_15min
-            name: Tariff Prices 15min
+          - entity: sensor.tesla_smart_charge_next_best_rate
+            name: Next Best Rate
+          - entity: sensor.tesla_smart_charge_est_range_at_target_soc
+            name: Est. Range at Target SOC
+          - entity: sensor.tesla_smart_charge_total_estimated_cost
+            name: Total Estimated Cost
+          - entity: sensor.tesla_smart_charge_finish_time
+            name: Finish Time
+          - entity: sensor.tesla_smart_charge_energy_to_add
+            name: Energy to Add
+          - entity: sensor.tesla_smart_charge_active_charge_slots
+            name: Active Charge Slots
+          - entity: sensor.tesla_smart_charge_next_start_time
+            name: Next Start Time
+          - entity: sensor.tesla_smart_charge_energy_deficit
+            name: Energy Deficit
+          - entity: sensor.tesla_smart_charge_current_tariff_15m
+            name: Current Tariff (15m)
       - type: entities
         title: Tesla Smart Controls
         entities:
-          - entity: binary_sensor.tesla_smart_charge_module_charge_controllable
-          - entity: switch.tesla_smart_charge_smart_charging_enabled
-            name: Smart Charging Enabled
-          - entity: number.tesla_smart_charge_minimum_soc_by_ready_time
-            name: Minimum SOC By Ready Time
-          - entity: number.tesla_smart_charge_ready_by_hour
-            name: Ready By Hour
-          - entity: number.tesla_smart_charge_cheap_price_threshold
-            name: Cheap Price Threshold
-          - entity: number.tesla_smart_charge_soc_if_cheap
-            name: SOC If Cheap
+          - entity: binary_sensor.tesla_smart_charge_smart_charging_status
+          - entity: switch.tesla_smart_charge_enable_smart_charging
+            name: Enable Smart Charging
+          - entity: number.tesla_smart_charge_min_soc_at_ready_time
+            name: Min. SOC at Ready Time
+          - entity: number.tesla_smart_charge_departure_time
+            name: Departure Time
+          - entity: number.tesla_smart_charge_price_limit_threshold
+            name: Price Limit Threshold
+          - entity: number.tesla_smart_charge_target_soc_low_rate
+            name: Target SOC (Low Rate)
       - type: custom:html-template-card
         title: false
         ignore_line_breaks: true
@@ -171,7 +171,7 @@ views:
             </style>
 
 
-            {% set all_slots = state_attr('sensor.tesla_smart_charge_optimized_schedule',
+            {% set all_slots = state_attr('sensor.tesla_smart_charge_active_charge_slots',
             'schedule') %}
 
             {% if all_slots %}
@@ -218,38 +218,39 @@ views:
 
                 <div class="cs-stats">
                   <div class="cs-stat">
-                    <div class="cs-sl">Active slots</div>
+                    <div class="cs-sl">Charging Slots</div>
                     <div class="cs-sv">{{ slots | count }}</div>
                   </div>
                   <div class="cs-stat">
-                    <div class="cs-sl">Groups</div>
+                    <div class="cs-sl">Charge Sessions</div>
                     <div class="cs-sv">{{ ns.groups | count }}</div>
                   </div>
                   <div class="cs-stat">
-                    <div class="cs-sl">Price min</div>
+                    <div class="cs-sl">Min Rate</div>
                     <div class="cs-sv">€{{ "%.5f" | format(pmin) }}</div>
                   </div>
                   <div class="cs-stat">
-                    <div class="cs-sl">Price max</div>
+                    <div class="cs-sl">Max Rate</div>
                     <div class="cs-sv">€{{ "%.5f" | format(pmax) }}</div>
                   </div>
                   <div class="cs-stat" style="grid-column:1/-1">
-                    <div class="cs-sl">SoC range</div>
+                    <div class="cs-sl">SOC Forecast</div>
                     <div class="cs-sv">{{ soc_min }}% → {{ soc_max }}%</div>
                   </div>
                 </div>
 
-                <div class="cs-slab">Grouped slots</div>
+                <div class="cs-slab">Charging Timeline</div>
                 <table class="cs-t">
                   <thead><tr>
                     <th>Start</th><th>End</th>
-                    <th>Avg price</th><th>SoC</th><th>Stage</th>
+                    <th>Avg. Rate</th><th>SOC</th><th>Status</th>
                   </tr></thead>
                   <tbody>
                   {% for g in ns.groups %}
                     {% set avg = (g.prices | sum) / (g.prices | count) %}
                     {% set pct = ((avg - pmin) / (pmax - pmin) * 100) | round if pmax != pmin else 50 %}
-                    {% set badge_cls = 'b-chg' if g.stage == 'charge' else 'b-base' if g.stage == 'base' else 'b-oth' %}
+                    {% set status_label = 'Optimal' if g.stage == 'cheap_bonus' else 'Primary' if g.stage in ['required', 'base', 'charge'] else g.stage %}
+                    {% set badge_cls = 'b-chg' if g.stage == 'cheap_bonus' else 'b-base' if g.stage in ['required', 'base', 'charge'] else 'b-oth' %}
                     <tr>
                       <td class="tm">{{ g.start[11:16] }}</td>
                       <td class="tm">{{ g.end[11:16] }}</td>
@@ -260,7 +261,7 @@ views:
                           style="width:{{ pct }}%;background:#E5FF3A"></span></span>
                       </td>
                       <td>{{ g.soc_end }}%</td>
-                      <td><span class="badge {{ badge_cls }}">{{ g.stage }}</span></td>
+                      <td><span class="badge {{ badge_cls }}">{{ status_label }}</span></td>
                     </tr>
                   {% endfor %}
                   </tbody>

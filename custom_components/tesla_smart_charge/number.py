@@ -61,7 +61,7 @@ async def async_setup_entry(
     descriptions = [
         TeslaSmartChargeNumberDescription(
             key=INPUT_TARGET_SOC,
-            name="Minimum SOC By Ready Time",
+            name="Min. SOC at Ready Time",
             min_value=0.0,
             max_value_fn=lambda coord: 100.0,
             step=1.0,
@@ -69,7 +69,7 @@ async def async_setup_entry(
         ),
         TeslaSmartChargeNumberDescription(
             key=INPUT_READY_BY_HOUR,
-            name="Ready By Hour",
+            name="Departure Time",
             min_value=0.0,
             max_value_fn=lambda coord: 23.0,
             step=1.0,
@@ -77,7 +77,7 @@ async def async_setup_entry(
         ),
         TeslaSmartChargeNumberDescription(
             key=INPUT_OPPORTUNISTIC_SOC,
-            name="SOC If Cheap",
+            name="Target SOC (Low Rate)",
             min_value=0.0,
             max_value_fn=lambda coord: 100.0,
             step=1.0,
@@ -85,7 +85,7 @@ async def async_setup_entry(
         ),
         TeslaSmartChargeNumberDescription(
             key=INPUT_CHEAP_PRICE_THRESHOLD,
-            name="Cheap Price Threshold",
+            name="Price Limit Threshold",
             min_value=0.0,
             max_value_fn=lambda coord: 0.2,
             step=0.001,

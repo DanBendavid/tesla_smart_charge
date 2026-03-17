@@ -45,7 +45,7 @@ async def async_setup_entry(
     descriptions = [
         TeslaSmartChargeSwitchDescription(
             key=INPUT_SMART_CHARGING_ENABLED,
-            name="Smart Charging Enabled",
+            name="Enable Smart Charging",
         ),
         TeslaSmartChargeSwitchDescription(
             key=INPUT_ALLOW_IMMEDIATE_CHARGE,

@@ -13,8 +13,8 @@
 ## ✨ Fonctionnalites principales
 
   * **Optimisation en deux etapes :**
-    1.  **Priorite readiness :** Atteint votre `Minimum SOC` avant `Ready By Hour`.
-    2.  **Recharge bonus "Cheap" :** Continue vers `SOC If Cheap` uniquement sur les plages de prix tres bas, sans contrainte horaire.
+    1.  **Priorite readiness :** Atteint votre `Min. SOC at Ready Time` avant `Departure Time`.
+    2.  **Recharge bonus "Cheap" :** Continue vers `Target SOC (Low Rate)` uniquement sur les plages de prix tres bas, sans contrainte horaire.
   * **Sources tarifaires flexibles :** Support des attributs de capteur, endpoints REST (JSON) et prix spot bruts (CU4 Particulier TTC).
   * **Automatisation intelligente :** Augmente automatiquement la limite de charge Tesla de `+1%` si necessaire pour reveiller la voiture et demarrer une session.
   * **Dashboard pret a l'emploi :** Service integre pour generer une vue Lovelace dediee avec integration `ApexCharts`.
@@ -58,11 +58,11 @@
 
 | Icon | Type d'entite | Nom | Usage |
 | :--- | :--- | :--- | :--- |
-| 🔢 | **Number** | `Minimum SOC By Ready Time` | Niveau batterie cible pour le depart. |
-| 🕒 | **Number** | `Ready By Hour` | Echeance pour atteindre le SOC minimum. |
-| 💰 | **Number** | `Cheap Price Threshold` | Prix plafond pour la recharge "Bonus". |
-| ⚡ | **Switch** | `Smart Charging Enabled` | Interrupteur principal de l'optimiseur. |
-| 🛰️ | **Binary Sensor** | `Module Charge Controllable` | Actif si cable branche et planification Tesla desactivee. |
+| 🔢 | **Number** | `Min. SOC at Ready Time` | Niveau batterie cible pour le depart. |
+| 🕒 | **Number** | `Departure Time` | Echeance pour atteindre le SOC minimum. |
+| 💰 | **Number** | `Price Limit Threshold` | Prix plafond pour la recharge "Bonus". |
+| ⚡ | **Switch** | `Enable Smart Charging` | Interrupteur principal de l'optimiseur. |
+| 🛰️ | **Binary Sensor** | `Smart Charging Status` | Actif si cable branche et planification Tesla desactivee. |
 
 -----
 
@@ -88,7 +88,7 @@ data:
 ## 💡 Notes techniques
 
 > [!IMPORTANT]
-> **Controlabilite :** le capteur `Module Charge Controllable` doit etre a `True` pour que l'integration fonctionne. Cela demande que la voiture soit **branchee** et que la **planification de charge Tesla interne soit desactivee** (pour eviter les conflits).
+> **Controlabilite :** le capteur `Smart Charging Status` doit etre a `True` pour que l'integration fonctionne. Cela demande que la voiture soit **branchee** et que la **planification de charge Tesla interne soit desactivee** (pour eviter les conflits).
 
   * **Prix spot :** Les prix du lendemain sont recuperes apres `13:10` heure locale. L'optimiseur regarde jusqu'a 48h pour trouver les meilleurs slots.
   * **Efficacite :** Les calculs utilisent les valeurs `Wh/km` et `kWh` pour estimer la duree necessaire afin d'atteindre les cibles.

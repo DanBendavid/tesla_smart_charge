@@ -49,7 +49,7 @@ async def async_setup_entry(
     descriptions = [
         TeslaSmartChargeBinarySensorDescription(
             key="module_charge_controllable",
-            name="Module Charge Controllable",
+            name="Smart Charging Status",
             value_fn=_module_charge_controllable_value,
             attrs_fn=_module_charge_controllable_attrs,
         )

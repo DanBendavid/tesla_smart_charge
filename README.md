@@ -14,8 +14,8 @@
 ## ✨ Key Features
 
   * **Dual-Stage Optimization:**
-    1.  **Readiness Priority:** Reaches your `Minimum SOC` by your `Ready By Hour`.
-    2.  **Bonus "Cheap" Charging:** Continues to `SOC If Cheap` only during ultra-low price windows, regardless of time.
+    1.  **Readiness Priority:** Reaches your `Min. SOC at Ready Time` by your `Departure Time`.
+    2.  **Bonus "Cheap" Charging:** Continues to `Target SOC (Low Rate)` only during ultra-low price windows, regardless of time.
   * **Flexible Tariff Sources:** Supports Sensor Attributes, REST Endpoints (JSON), and Raw Spot prices (CU4 Particulier TTC).
   * **Smart Automation:** Automatically bumps the Tesla charge limit by $+1\%$ if needed to wake the car and trigger a session.
   * **Plug & Play Dashboard:** Built-in service to generate a dedicated Lovelace view with `ApexCharts` integration.
@@ -59,11 +59,11 @@
 
 | Icon | Entity Type | Name | Purpose |
 | :--- | :--- | :--- | :--- |
-| 🔢 | **Number** | `Minimum SOC By Ready Time` | Target battery level for departure. |
-| 🕒 | **Number** | `Ready By Hour` | Deadline for the Minimum SOC. |
-| 💰 | **Number** | `Cheap Price Threshold` | Price ceiling for "Bonus" charging. |
-| ⚡ | **Switch** | `Smart Charging Enabled` | Master toggle for the optimizer. |
-| 🛰️ | **Binary Sensor** | `Module Charge Controllable` | Green if plug is in & Tesla scheduler is off. |
+| 🔢 | **Number** | `Min. SOC at Ready Time` | Target battery level for departure. |
+| 🕒 | **Number** | `Departure Time` | Deadline for the minimum SOC target. |
+| 💰 | **Number** | `Price Limit Threshold` | Price ceiling for "Bonus" charging. |
+| ⚡ | **Switch** | `Enable Smart Charging` | Master toggle for the optimizer. |
+| 🛰️ | **Binary Sensor** | `Smart Charging Status` | Green if plug is in & Tesla scheduler is off. |
 
 -----
 
@@ -89,7 +89,7 @@ data:
 ## 💡 Technical Notes
 
 > [\!IMPORTANT]
-> **Controllability:** The `Module Charge Controllable` sensor must be `True` for the integration to work. This requires the car to be **plugged in** and the **internal Tesla scheduled charging to be disabled** (to avoid conflicts).
+> **Controllability:** The `Smart Charging Status` sensor must be `True` for the integration to work. This requires the car to be **plugged in** and the **internal Tesla scheduled charging to be disabled** (to avoid conflicts).
 
   * **Spot Prices:** Tomorrow's prices are fetched after `13:10` local time. The optimizer looks ahead up to 48 hours to find the best slots.
   * **Efficiency:** Calculations use your defined `Wh/km` and battery `kWh` to estimate the duration needed to reach targets.
