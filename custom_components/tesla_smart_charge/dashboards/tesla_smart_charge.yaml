@@ -119,3 +119,156 @@ views:
             name: Remaining Energy Needed
           - entity: sensor.tesla_smart_charge_tariff_prices_15min
             name: Tariff Prices 15min
+      - type: entities
+        title: Tesla Smart Controls
+        entities:
+          - entity: binary_sensor.tesla_smart_charge_module_charge_controllable
+          - entity: switch.tesla_smart_charge_smart_charging_enabled
+            name: Smart Charging Enabled
+          - entity: number.tesla_smart_charge_minimum_soc_by_ready_time
+            name: Minimum SOC By Ready Time
+          - entity: number.tesla_smart_charge_ready_by_hour
+            name: Ready By Hour
+          - entity: number.tesla_smart_charge_cheap_price_threshold
+            name: Cheap Price Threshold
+          - entity: number.tesla_smart_charge_soc_if_cheap
+            name: SOC If Cheap
+      - type: custom:html-template-card
+        title: false
+        ignore_line_breaks: true
+        content: >
+            <style>
+              .cs { font-family: sans-serif; padding: 12px 0; }
+              .cs-head { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+              .cs-bolt { background:#E5FF3A; border-radius:6px; padding:4px 7px; font-size:16px; }
+              .cs-title { font-size:17px; font-weight:700; color:var(--primary-text-color); }
+              .cs-stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+              .cs-stat { background:var(--card-background-color); border-radius:8px;
+                          border:1px solid var(--divider-color); padding:8px 12px; }
+              .cs-sl { font-size:10px; text-transform:uppercase; letter-spacing:.06em;
+                        color:var(--secondary-text-color); margin-bottom:3px; }
+              .cs-sv { font-size:15px; font-weight:600; color:var(--primary-text-color); font-family:monospace; }
+              .cs-slab { font-size:10px; text-transform:uppercase; letter-spacing:.07em;
+                          color:var(--secondary-text-color); margin-bottom:8px; font-weight:600; }
+              table.cs-t { width:100%; border-collapse:collapse; font-size:12px; }
+              table.cs-t th { text-align:left; color:var(--secondary-text-color); font-size:10px;
+                              text-transform:uppercase; letter-spacing:.05em; padding:0 0 6px;
+                              border-bottom:1px solid var(--divider-color); }
+              table.cs-t td { padding:8px 0; border-bottom:1px solid var(--divider-color);
+                              color:var(--primary-text-color); vertical-align:middle; }
+              table.cs-t tr:last-child td { border-bottom:none; }
+              .tm { font-family:monospace; font-size:12px; color:var(--secondary-text-color); }
+              .pr { font-family:monospace; font-weight:600; }
+              .slots-count { font-size:10px; color:var(--secondary-text-color); margin-left:2px; }
+              .badge { font-size:9px; font-weight:700; padding:2px 7px; border-radius:4px;
+                        text-transform:uppercase; letter-spacing:.04em; }
+              .b-chg  { background:#E5FF3A33; color:#7a8800; border:1px solid #E5FF3A66; }
+              .b-base { background:#3AE5C022; color:#0a7a60; border:1px solid #3AE5C066; }
+              .b-oth  { background:var(--divider-color); color:var(--secondary-text-color); }
+              .bar-bg { width:36px; height:3px; background:var(--divider-color); border-radius:2px;
+                        display:inline-block; vertical-align:middle; margin-left:4px; }
+              .bar-fg { height:100%; border-radius:2px; }
+            </style>
+
+
+            {% set all_slots = state_attr('sensor.tesla_smart_charge_optimized_schedule',
+            'schedule') %}
+
+            {% if all_slots %}
+
+              {# --- 1. keep only enabled slots --- #}
+              {% set slots = all_slots | selectattr('enabled', 'eq', true) | list %}
+
+              {# --- 2. group contiguous slots (same stage, consecutive times) --- #}
+              {# Jinja2 has no mutable vars, so we build a flat "group index" list first #}
+              {% set ns = namespace(groups=[], cur=none) %}
+              {% for s in slots %}
+                {% if ns.cur is none
+                      or s.stage != ns.cur.stage
+                      or s.start != ns.cur.end %}
+                  {# start a new group #}
+                  {% set ns.cur = {'stage': s.stage, 'start': s.start, 'end': s.end,
+                                  'prices': [s.price], 'soc_end': s.soc_end,
+                                  'count': 1} %}
+                  {% set ns.groups = ns.groups + [ns.cur] %}
+                {% else %}
+                  {# extend current group — rebuild dict (Jinja immutability workaround) #}
+                  {% set updated = {'stage': ns.cur.stage, 'start': ns.cur.start, 'end': s.end,
+                                    'prices': ns.cur.prices + [s.price],
+                                    'soc_end': s.soc_end,
+                                    'count': ns.cur.count + 1} %}
+                  {% set ns.cur = updated %}
+                  {# replace last element in groups #}
+                  {% set ns.groups = ns.groups[:-1] + [updated] %}
+                {% endif %}
+              {% endfor %}
+
+              {# --- 3. compute stats across grouped slots --- #}
+              {% set all_prices = slots | map(attribute='price') | list %}
+              {% set pmin = all_prices | min %}
+              {% set pmax = all_prices | max %}
+              {% set soc_min = slots | map(attribute='soc_end') | min %}
+              {% set soc_max = slots | map(attribute='soc_end') | max %}
+
+              <div class="cs">
+                <div class="cs-head">
+                  <div class="cs-bolt">&#9889;</div>
+                  <div class="cs-title">Tesla Smart Charge Schedule</div>
+                </div>
+
+                <div class="cs-stats">
+                  <div class="cs-stat">
+                    <div class="cs-sl">Active slots</div>
+                    <div class="cs-sv">{{ slots | count }}</div>
+                  </div>
+                  <div class="cs-stat">
+                    <div class="cs-sl">Groups</div>
+                    <div class="cs-sv">{{ ns.groups | count }}</div>
+                  </div>
+                  <div class="cs-stat">
+                    <div class="cs-sl">Price min</div>
+                    <div class="cs-sv">€{{ "%.5f" | format(pmin) }}</div>
+                  </div>
+                  <div class="cs-stat">
+                    <div class="cs-sl">Price max</div>
+                    <div class="cs-sv">€{{ "%.5f" | format(pmax) }}</div>
+                  </div>
+                  <div class="cs-stat" style="grid-column:1/-1">
+                    <div class="cs-sl">SoC range</div>
+                    <div class="cs-sv">{{ soc_min }}% → {{ soc_max }}%</div>
+                  </div>
+                </div>
+
+                <div class="cs-slab">Grouped slots</div>
+                <table class="cs-t">
+                  <thead><tr>
+                    <th>Start</th><th>End</th>
+                    <th>Avg price</th><th>SoC</th><th>Stage</th>
+                  </tr></thead>
+                  <tbody>
+                  {% for g in ns.groups %}
+                    {% set avg = (g.prices | sum) / (g.prices | count) %}
+                    {% set pct = ((avg - pmin) / (pmax - pmin) * 100) | round if pmax != pmin else 50 %}
+                    {% set badge_cls = 'b-chg' if g.stage == 'charge' else 'b-base' if g.stage == 'base' else 'b-oth' %}
+                    <tr>
+                      <td class="tm">{{ g.start[11:16] }}</td>
+                      <td class="tm">{{ g.end[11:16] }}</td>
+                      <td>
+                        <span class="pr">€{{ "%.4f" | format(avg) }}</span>
+                        <span class="slots-count">{{ g.count }}×15m</span>
+                        <span class="bar-bg"><span class="bar-fg"
+                          style="width:{{ pct }}%;background:#E5FF3A"></span></span>
+                      </td>
+                      <td>{{ g.soc_end }}%</td>
+                      <td><span class="badge {{ badge_cls }}">{{ g.stage }}</span></td>
+                    </tr>
+                  {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+            {% else %}
+              <p style="color:var(--secondary-text-color);padding:1rem">
+                No schedule data on sensor.tesla_charge_schedule
+              </p>
+            {% endif %}

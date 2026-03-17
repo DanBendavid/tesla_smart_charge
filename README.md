@@ -26,7 +26,7 @@
 
 1.  **Tesla Integration:** An active Tesla integration (Official or Custom) providing SOC, Amps, Charger Switch, and Plug Status.
 2.  **Tariff Data:** A sensor or API providing upcoming price data.
-3.  **Frontend (Optional):** Install `ApexCharts Card` via HACS for the best visual experience in the dashboard.
+3.  **Frontend (Optional):** Install `ApexCharts Card` and `HTML Template Card` via HACS (`Frontend`) for the best visual experience and support for `custom:html-template-card`.
 
 -----
 

@@ -25,7 +25,7 @@
 
 1.  **Integration Tesla :** Une integration Tesla active (officielle ou custom) fournissant SOC, amperage, switch de charge et etat du cable.
 2.  **Donnees tarifaires :** Un capteur ou une API qui fournit les prix a venir.
-3.  **Frontend (optionnel) :** Installer `ApexCharts Card` via HACS pour une meilleure visualisation sur le dashboard.
+3.  **Frontend (optionnel) :** Installer `ApexCharts Card` et `HTML Template Card` via HACS (`Frontend`) pour une meilleure visualisation et le support de `custom:html-template-card`.
 
 -----
 
