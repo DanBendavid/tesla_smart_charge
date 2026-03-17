@@ -21,6 +21,7 @@ class TeslaSmartChargeSwitchDescription:
     """Description of a Tesla Smart Charge switch."""
 
     key: str
+    input_key: str
     name: str
     device_class: str | None = None
     has_entity_name: bool = True
@@ -44,11 +45,13 @@ async def async_setup_entry(
 
     descriptions = [
         TeslaSmartChargeSwitchDescription(
-            key=INPUT_SMART_CHARGING_ENABLED,
+            key="enable_smart_charging",
+            input_key=INPUT_SMART_CHARGING_ENABLED,
             name="Enable Smart Charging",
         ),
         TeslaSmartChargeSwitchDescription(
-            key=INPUT_ALLOW_IMMEDIATE_CHARGE,
+            key="allow_immediate_charge",
+            input_key=INPUT_ALLOW_IMMEDIATE_CHARGE,
             name="Allow Immediate Charge",
             entity_registry_enabled_default=False,
         ),
@@ -68,29 +71,29 @@ class TeslaSmartChargeSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
 
         super().__init__(coordinator)
         self.entity_description = description
-        self._key = description.key
+        self._input_key = description.input_key
         self._attr_name = description.name
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{description.key}"
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_device_info = get_device_info(coordinator.entry)
-        coordinator.register_input_entity(self._key, self)
+        coordinator.register_input_entity(self._input_key, self)
 
     @property
     def is_on(self) -> bool | None:
         """Return the switch state."""
 
-        return bool(self.coordinator.inputs.get(self._key))
+        return bool(self.coordinator.inputs.get(self._input_key))
 
     async def async_turn_on(self, **kwargs) -> None:
         """Handle turning on the switch."""
 
-        await self.coordinator.async_set_user_input(self._key, True)
+        await self.coordinator.async_set_user_input(self._input_key, True)
         await self.coordinator.async_apply_control()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Handle turning off the switch."""
 
-        await self.coordinator.async_set_user_input(self._key, False)
+        await self.coordinator.async_set_user_input(self._input_key, False)
         await self.coordinator.async_apply_control()
 
     async def async_added_to_hass(self) -> None:
@@ -101,5 +104,7 @@ class TeslaSmartChargeSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         if not last_state:
             return
 
-        self.coordinator.set_input_value(self._key, last_state.state == "on", set_last=False)
+        self.coordinator.set_input_value(
+            self._input_key, last_state.state == "on", set_last=False
+        )
         self.async_write_ha_state()

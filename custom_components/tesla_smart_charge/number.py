@@ -33,6 +33,7 @@ class TeslaSmartChargeNumberDescription:
     """Description of a Tesla Smart Charge number."""
 
     key: str
+    input_key: str
     name: str
     min_value: float
     max_value_fn: Callable[[TeslaSmartChargeCoordinator], float]
@@ -60,7 +61,8 @@ async def async_setup_entry(
 
     descriptions = [
         TeslaSmartChargeNumberDescription(
-            key=INPUT_TARGET_SOC,
+            key="min_soc_at_ready_time",
+            input_key=INPUT_TARGET_SOC,
             name="Min. SOC at Ready Time",
             min_value=0.0,
             max_value_fn=lambda coord: 100.0,
@@ -68,7 +70,8 @@ async def async_setup_entry(
             unit_fn=lambda coord: PERCENTAGE,
         ),
         TeslaSmartChargeNumberDescription(
-            key=INPUT_READY_BY_HOUR,
+            key="departure_time",
+            input_key=INPUT_READY_BY_HOUR,
             name="Departure Time",
             min_value=0.0,
             max_value_fn=lambda coord: 23.0,
@@ -76,7 +79,8 @@ async def async_setup_entry(
             unit_fn=lambda coord: "h",
         ),
         TeslaSmartChargeNumberDescription(
-            key=INPUT_OPPORTUNISTIC_SOC,
+            key="target_soc_low_rate",
+            input_key=INPUT_OPPORTUNISTIC_SOC,
             name="Target SOC (Low Rate)",
             min_value=0.0,
             max_value_fn=lambda coord: 100.0,
@@ -84,7 +88,8 @@ async def async_setup_entry(
             unit_fn=lambda coord: PERCENTAGE,
         ),
         TeslaSmartChargeNumberDescription(
-            key=INPUT_CHEAP_PRICE_THRESHOLD,
+            key="price_limit_threshold",
+            input_key=INPUT_CHEAP_PRICE_THRESHOLD,
             name="Price Limit Threshold",
             min_value=0.0,
             max_value_fn=lambda coord: 0.2,
@@ -92,7 +97,8 @@ async def async_setup_entry(
             unit_fn=_currency_per_kwh_unit,
         ),
         TeslaSmartChargeNumberDescription(
-            key=INPUT_TARGET_ENERGY,
+            key="target_energy",
+            input_key=INPUT_TARGET_ENERGY,
             name="Target Energy",
             min_value=0.0,
             max_value_fn=_energy_max,
@@ -101,7 +107,8 @@ async def async_setup_entry(
             entity_registry_enabled_default=False,
         ),
         TeslaSmartChargeNumberDescription(
-            key=INPUT_TARGET_DISTANCE,
+            key="target_distance",
+            input_key=INPUT_TARGET_DISTANCE,
             name="Target Distance",
             min_value=0.0,
             max_value_fn=_distance_max,
@@ -129,14 +136,14 @@ class TeslaSmartChargeNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
 
         super().__init__(coordinator)
         self.entity_description = description
-        self._key = description.key
+        self._input_key = description.input_key
         self._attr_name = description.name
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{description.key}"
         self._attr_native_min_value = description.min_value
         self._attr_native_step = description.step
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_device_info = get_device_info(coordinator.entry)
-        coordinator.register_input_entity(self._key, self)
+        coordinator.register_input_entity(self._input_key, self)
 
     @property
     def native_max_value(self) -> float:
@@ -154,12 +161,12 @@ class TeslaSmartChargeNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
     def native_value(self) -> float | None:
         """Return the current value."""
 
-        return self.coordinator.inputs.get(self._key)
+        return self.coordinator.inputs.get(self._input_key)
 
     async def async_set_native_value(self, value: float) -> None:
         """Handle a user update."""
 
-        await self.coordinator.async_set_user_input(self._key, float(value))
+        await self.coordinator.async_set_user_input(self._input_key, float(value))
 
     async def async_added_to_hass(self) -> None:
         """Restore previous state."""
@@ -173,7 +180,7 @@ class TeslaSmartChargeNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
         if value is None:
             return
 
-        self.coordinator.set_input_value(self._key, value, set_last=False)
+        self.coordinator.set_input_value(self._input_key, value, set_last=False)
         self.async_write_ha_state()
 
 
