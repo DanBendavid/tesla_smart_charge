@@ -1,0 +1,68 @@
+{
+  "config": {
+    "flow_title": "Tesla Smart Charge",
+    "step": {
+      "user": {
+        "title": "Mapping des entites Tesla",
+        "description": "Selectionnez les entites Tesla existantes a piloter.",
+        "data": {
+          "battery_sensor": "Capteur etat de charge (SoC)",
+          "charging_sensor": "Etat de charge",
+          "charger_switch": "Interrupteur de charge",
+          "charger_power_sensor": "Capteur puissance chargeur",
+          "charge_limit_number": "Nombre limite de charge",
+          "charging_amps_number": "Nombre amperage de charge",
+          "range_sensor": "Capteur autonomie",
+          "time_charge_complete_sensor": "Capteur heure fin de charge",
+          "charger_connected_sensor": "Capteur cable branche",
+          "scheduled_charging_sensor": "Capteur planification de charge Tesla"
+        }
+      },
+      "tariff": {
+        "title": "Source tarifaire",
+        "data": {
+          "tariff_source": "Source tarifaire"
+        }
+      },
+      "tariff_sensor": {
+        "title": "Capteur tarifaire",
+        "description": "Indiquez le capteur et l'attribut contenant les prix par tranche de 15 minutes.",
+        "data": {
+          "tariff_sensor": "Capteur tarifaire",
+          "tariff_attribute": "Nom de l'attribut"
+        }
+      },
+      "tariff_rest": {
+        "title": "Endpoint REST tarifaire",
+        "description": "Indiquez une URL qui retourne une liste JSON de slots tarifaires.",
+        "data": {
+          "tariff_rest_url": "URL REST",
+          "tariff_rest_headers": "Headers (JSON)",
+          "tariff_rest_json_path": "Chemin JSON"
+        }
+      },
+      "constants": {
+        "title": "Constantes vehicule",
+        "description": "Valeurs typiques: batterie 50-100 kWh, efficacite 140-220 Wh/km, puissance de charge maison 3-7 kW.",
+        "data": {
+          "battery_capacity_kwh": "Capacite batterie utilisable (kWh, typique 50-100)",
+          "vehicle_efficiency_wh_per_km": "Efficacite vehicule (Wh/km, typique 140-220)",
+          "max_charging_power_kw": "Puissance de charge max (kW, maison typique 3-7)",
+          "install_dashboard_on_setup": "Installer le template de dashboard maintenant",
+          "add_to_existing_dashboard": "Ajouter la vue Tesla a un dashboard existant"
+        }
+      },
+      "existing_dashboard": {
+        "title": "Dashboard existant",
+        "description": "Selectionnez un dashboard ou ajouter la vue Smart Charge. Si aucun dashboard n'est liste, renseignez un nom de fichier YAML manuellement.",
+        "data": {
+          "existing_dashboard_filename": "Dashboard existant"
+        }
+      }
+    },
+    "error": {
+      "invalid_headers": "Les headers doivent etre un JSON valide.",
+      "empty_dashboard_filename": "Le nom de fichier dashboard ne peut pas etre vide."
+    }
+  }
+}
