@@ -270,6 +270,6 @@ views:
 
             {% else %}
               <p style="color:var(--secondary-text-color);padding:1rem">
-                No schedule data on sensor.tesla_charge_schedule
+                No schedule data on sensor.tesla_smart_charge_active_charge_slots
               </p>
             {% endif %}
