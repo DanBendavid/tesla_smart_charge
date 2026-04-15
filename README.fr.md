@@ -16,6 +16,7 @@
     1.  **Priorite readiness :** Atteint votre `Min. SOC at Ready Time` avant `Departure Time`.
     2.  **Recharge bonus "Cheap" :** Continue vers `Target SOC (Low Rate)` uniquement sur les plages de prix tres bas, sans contrainte horaire.
   * **Sources tarifaires flexibles :** Support des attributs de capteur, endpoints REST (JSON) et prix spot bruts (CU4 Particulier TTC).
+  * **Sensors de marche pour dashboard/ticker :** Expose le prix spot actuel, la variation vs le slot precedent, la tendance court terme, le prochain creux significatif et le niveau relatif du prix courant.
   * **Automatisation intelligente :** Augmente automatiquement la limite de charge Tesla de `+1%` si necessaire pour reveiller la voiture et demarrer une session.
   * **Dashboard pret a l'emploi :** Service integre pour generer une vue Lovelace dediee avec integration `ApexCharts`.
 
@@ -66,6 +67,26 @@
 
 -----
 
+## 📈 Sensors "Marche"
+
+Ces sensors sont pensés pour un affichage de type ticker ou salle de marche, avec un contexte immediat plutot qu'une simple liste de prix bruts.
+
+| Nom | Type | Valeur principale | Attributs utiles |
+| :--- | :--- | :--- | :--- |
+| `Current Spot Price` | Sensor | Prix spot courant en `EUR/kWh` | `start`, `end`, `source` |
+| `Price Change vs Previous Slot` | Sensor | Ecart absolu vs le slot precedent | `delta_percent`, `direction`, `current_price`, `previous_price` |
+| `Short-Term Price Trend` | Sensor | `up`, `down` ou `stable` | `current_price`, `delta_vs_previous`, `price_level` |
+| `Next Significant Low` | Timestamp Sensor | Debut du prochain vrai creux exploitable | `end`, `price`, `duration_minutes` |
+| `Current Price Level` | Sensor | `very_low`, `low`, `normal`, `high`, `very_high` | `percentile`, `status`, `current_price` |
+
+Exemple d'affichage synthétique :
+
+```text
+SPOT 0.164 EUR/kWh  DELTA -0.012  TREND down  NEXT LOW 11:30  STATUS cheap
+```
+
+-----
+
 ## 🛠 Services
 
 | Service | Description |
@@ -91,6 +112,10 @@ data:
 > **Controlabilite :** le capteur `Smart Charging Status` doit etre a `True` pour que l'integration fonctionne. Cela demande que la voiture soit **branchee** et que la **planification de charge Tesla interne soit desactivee** (pour eviter les conflits).
 
   * **Prix spot :** Les prix du lendemain sont recuperes apres `13:10` heure locale. L'optimiseur regarde jusqu'a 48h pour trouver les meilleurs slots.
+  * **Variation vs slot precedent :** Les analytics conservent le contexte du slot precedent pour pouvoir calculer un delta utile au ticker.
+  * **Tendance court terme :** La tendance est calculee sur plusieurs slots afin d'eviter de surinterpreter une seule variation de 15 minutes.
+  * **Prochain creux significatif :** Ce n'est pas uniquement le minimum absolu; l'algorithme cherche d'abord un vrai creux local exploitable, puis etend la fenetre basse contigue.
+  * **Niveau relatif :** Le statut `very_low` a `very_high` est derive d'un percentile calcule sur la journee du slot courant.
   * **Efficacite :** Les calculs utilisent les valeurs `Wh/km` et `kWh` pour estimer la duree necessaire afin d'atteindre les cibles.
   * **Format JSON :** L'integration attend une liste d'objets avec timestamps (`start`, `end`) et une cle `price`.
 

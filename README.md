@@ -17,6 +17,7 @@
     1.  **Readiness Priority:** Reaches your `Min. SOC at Ready Time` by your `Departure Time`.
     2.  **Bonus "Cheap" Charging:** Continues to `Target SOC (Low Rate)` only during ultra-low price windows, regardless of time.
   * **Flexible Tariff Sources:** Supports Sensor Attributes, REST Endpoints (JSON), and Raw Spot prices (CU4 Particulier TTC).
+  * **Market sensors for dashboards/tickers:** Exposes the current spot price, change vs the previous slot, short-term trend, next significant low, and current relative price level.
   * **Smart Automation:** Automatically bumps the Tesla charge limit by $+1\%$ if needed to wake the car and trigger a session.
   * **Plug & Play Dashboard:** Built-in service to generate a dedicated Lovelace view with `ApexCharts` integration.
 
@@ -67,6 +68,26 @@
 
 -----
 
+## 📈 Market Sensors
+
+These sensors are designed for a compact market-style display, so you can render a meaningful ticker instead of only showing raw tariff arrays.
+
+| Name | Type | Primary Value | Useful Attributes |
+| :--- | :--- | :--- | :--- |
+| `Current Spot Price` | Sensor | Current spot price in `EUR/kWh` | `start`, `end`, `source` |
+| `Price Change vs Previous Slot` | Sensor | Absolute delta vs the previous slot | `delta_percent`, `direction`, `current_price`, `previous_price` |
+| `Short-Term Price Trend` | Sensor | `up`, `down`, or `stable` | `current_price`, `delta_vs_previous`, `price_level` |
+| `Next Significant Low` | Timestamp Sensor | Start of the next practical low window | `end`, `price`, `duration_minutes` |
+| `Current Price Level` | Sensor | `very_low`, `low`, `normal`, `high`, `very_high` | `percentile`, `status`, `current_price` |
+
+Example compact output:
+
+```text
+SPOT 0.164 EUR/kWh  DELTA -0.012  TREND down  NEXT LOW 11:30  STATUS cheap
+```
+
+-----
+
 ## 🛠 Services
 
 | Service | Description |
@@ -92,6 +113,10 @@ data:
 > **Controllability:** The `Smart Charging Status` sensor must be `True` for the integration to work. This requires the car to be **plugged in** and the **internal Tesla scheduled charging to be disabled** (to avoid conflicts).
 
   * **Spot Prices:** Tomorrow's prices are fetched after `13:10` local time. The optimizer looks ahead up to 48 hours to find the best slots.
+  * **Delta vs previous slot:** The analytics keep the previous-slot context so the ticker can expose a meaningful live market delta.
+  * **Short-term trend:** The trend is computed across several slots to avoid overreacting to a single 15-minute move.
+  * **Next significant low:** This is not just the absolute minimum; the algorithm first looks for a practical local trough, then expands the contiguous low-price window.
+  * **Relative level:** The `very_low` to `very_high` status is derived from a percentile computed on the day of the current slot.
   * **Efficiency:** Calculations use your defined `Wh/km` and battery `kWh` to estimate the duration needed to reach targets.
   * **JSON Format:** The integration expects a list of objects with timestamps (`start`, `end`) and a `price` key.
 
@@ -100,7 +125,3 @@ data:
 ## 🤝 Contributing
 
 Feedback and Pull Requests are welcome\! Feel free to open an issue for bug reports or feature requests.
-
------
-
-**Would you like me to add a "Troubleshooting" section or perhaps a visual example of the YAML configuration for the tariff sensor?**
