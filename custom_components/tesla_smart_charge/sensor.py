@@ -13,7 +13,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from .const import DISTANCE_UNIT_MI, DOMAIN
-from .coordinator import TeslaSmartChargeCoordinator, TeslaSmartChargeData, get_device_info
+from .coordinator import (
+    TariffMarketInsights,
+    TeslaSmartChargeCoordinator,
+    TeslaSmartChargeData,
+    get_device_info,
+)
 
 _KM_PER_MI = 1.60934
 
@@ -27,7 +32,7 @@ class TeslaSmartChargeSensorDescription:
     device_class: SensorDeviceClass | None
     state_class: SensorStateClass | None
     value_fn: Callable[[TeslaSmartChargeCoordinator], object | None]
-    attrs_fn: Callable[[TeslaSmartChargeCoordinator], dict] | None = None
+    attrs_fn: Callable[[TeslaSmartChargeCoordinator], dict | None] | None = None
     unit_fn: Callable[[TeslaSmartChargeCoordinator], str | None] | None = None
     suggested_unit_of_measurement: str | None = None
     has_entity_name: bool = True
@@ -73,6 +78,48 @@ async def async_setup_entry(
             state_class=None,
             value_fn=lambda coord: len(_data(coord).tariff_prices or []),
             attrs_fn=_tariff_attrs,
+        ),
+        TeslaSmartChargeSensorDescription(
+            key="spot_current_price",
+            name="Current Spot Price",
+            device_class=None,
+            state_class=SensorStateClass.MEASUREMENT,
+            value_fn=lambda coord: _round_or_none(_insights(coord).current_price, 4),
+            attrs_fn=_spot_current_price_attrs,
+            unit_fn=_price_unit,
+        ),
+        TeslaSmartChargeSensorDescription(
+            key="spot_price_delta",
+            name="Price Change vs Previous Slot",
+            device_class=None,
+            state_class=SensorStateClass.MEASUREMENT,
+            value_fn=lambda coord: _round_or_none(_insights(coord).delta_from_previous, 4),
+            attrs_fn=_spot_price_delta_attrs,
+            unit_fn=_price_unit,
+        ),
+        TeslaSmartChargeSensorDescription(
+            key="spot_price_trend",
+            name="Short-Term Price Trend",
+            device_class=None,
+            state_class=None,
+            value_fn=lambda coord: _insights(coord).short_term_trend,
+            attrs_fn=_spot_price_trend_attrs,
+        ),
+        TeslaSmartChargeSensorDescription(
+            key="next_significant_low",
+            name="Next Significant Low",
+            device_class=SensorDeviceClass.TIMESTAMP,
+            state_class=None,
+            value_fn=_next_significant_low_value,
+            attrs_fn=_next_significant_low_attrs,
+        ),
+        TeslaSmartChargeSensorDescription(
+            key="spot_price_level",
+            name="Current Price Level",
+            device_class=None,
+            state_class=None,
+            value_fn=lambda coord: _insights(coord).relative_level,
+            attrs_fn=_spot_price_level_attrs,
         ),
         TeslaSmartChargeSensorDescription(
             key="next_best_rate",
@@ -183,6 +230,7 @@ def _data(coordinator: TeslaSmartChargeCoordinator) -> TeslaSmartChargeData:
         optimized_cost=None,
         optimized_energy_kwh=None,
         optimized_schedule=[],
+        market_insights=TariffMarketInsights(),
     )
 
 
@@ -214,6 +262,12 @@ def _distance_unit(coordinator: TeslaSmartChargeCoordinator) -> str | None:
     return "km"
 
 
+def _insights(coordinator: TeslaSmartChargeCoordinator) -> TariffMarketInsights:
+    """Return market insights with safe defaults."""
+
+    return _data(coordinator).market_insights
+
+
 def _tariff_attrs(coordinator: TeslaSmartChargeCoordinator) -> dict:
     """Return tariff sensor attributes."""
 
@@ -222,6 +276,101 @@ def _tariff_attrs(coordinator: TeslaSmartChargeCoordinator) -> dict:
         "prices": data.tariff_prices,
         "source": coordinator.tariff_source,
         "currency": _currency_unit(coordinator),
+    }
+
+
+def _spot_current_price_attrs(coordinator: TeslaSmartChargeCoordinator) -> dict | None:
+    """Return current spot price context."""
+
+    insights = _insights(coordinator)
+    slot = insights.current_slot
+    if not slot:
+        return None
+
+    return {
+        "start": dt_util.as_local(slot.start).isoformat(),
+        "end": dt_util.as_local(slot.end).isoformat(),
+        "source": coordinator.tariff_source,
+    }
+
+
+def _spot_price_delta_attrs(coordinator: TeslaSmartChargeCoordinator) -> dict | None:
+    """Return delta vs previous slot, including percentage change."""
+
+    insights = _insights(coordinator)
+    if insights.delta_from_previous is None:
+        return None
+
+    direction = "flat"
+    if insights.delta_from_previous > 0:
+        direction = "up"
+    elif insights.delta_from_previous < 0:
+        direction = "down"
+
+    return {
+        "current_price": _round_or_none(insights.current_price, 4),
+        "previous_price": _round_or_none(insights.previous_price, 4),
+        "delta_percent": _round_or_none(insights.delta_percent_from_previous, 1),
+        "direction": direction,
+    }
+
+
+def _spot_price_trend_attrs(coordinator: TeslaSmartChargeCoordinator) -> dict | None:
+    """Return context for the short-term trend sensor."""
+
+    insights = _insights(coordinator)
+    if not insights.short_term_trend:
+        return None
+
+    return {
+        "current_price": _round_or_none(insights.current_price, 4),
+        "delta_vs_previous": _round_or_none(insights.delta_from_previous, 4),
+        "price_level": insights.relative_level,
+    }
+
+
+def _next_significant_low_value(coordinator: TeslaSmartChargeCoordinator) -> object | None:
+    """Return the start of the next significant low window."""
+
+    return _insights(coordinator).next_low_window_start
+
+
+def _next_significant_low_attrs(coordinator: TeslaSmartChargeCoordinator) -> dict | None:
+    """Return attributes for the next significant low window."""
+
+    insights = _insights(coordinator)
+    slot = insights.next_low_slot
+    if not slot or not insights.next_low_window_start or not insights.next_low_window_end:
+        return None
+
+    duration_minutes = int(
+        (insights.next_low_window_end - insights.next_low_window_start).total_seconds() / 60
+    )
+    return {
+        "start": dt_util.as_local(insights.next_low_window_start).isoformat(),
+        "end": dt_util.as_local(insights.next_low_window_end).isoformat(),
+        "price": _round_or_none(slot.price, 4),
+        "duration_minutes": duration_minutes,
+    }
+
+
+def _spot_price_level_attrs(coordinator: TeslaSmartChargeCoordinator) -> dict | None:
+    """Return percentile-based context for the current price."""
+
+    insights = _insights(coordinator)
+    if insights.relative_level is None:
+        return None
+
+    status = "normal"
+    if insights.relative_level in {"very_low", "low"}:
+        status = "cheap"
+    elif insights.relative_level in {"high", "very_high"}:
+        status = "expensive"
+
+    return {
+        "percentile": _round_or_none(insights.current_price_percentile, 1),
+        "status": status,
+        "current_price": _round_or_none(insights.current_price, 4),
     }
 
 
@@ -267,3 +416,12 @@ def _currency_unit(coordinator: TeslaSmartChargeCoordinator) -> str | None:
     if coordinator.hass:
         return coordinator.hass.config.currency
     return None
+
+
+def _price_unit(coordinator: TeslaSmartChargeCoordinator) -> str | None:
+    """Return a price-per-kWh unit based on the HA currency."""
+
+    currency = _currency_unit(coordinator)
+    if not currency:
+        return None
+    return f"{currency}/kWh"

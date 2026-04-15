@@ -101,6 +101,16 @@ views:
         title: Sensors
         show_header_toggle: false
         entities:
+          - entity: sensor.tesla_smart_charge_current_spot_price
+            name: Current Spot Price
+          - entity: sensor.tesla_smart_charge_price_change_vs_previous_slot
+            name: Price Change vs Previous Slot
+          - entity: sensor.tesla_smart_charge_short_term_price_trend
+            name: Short-Term Price Trend
+          - entity: sensor.tesla_smart_charge_next_significant_low
+            name: Next Significant Low
+          - entity: sensor.tesla_smart_charge_current_price_level
+            name: Current Price Level
           - entity: sensor.tesla_smart_charge_next_best_rate
             name: Next Best Rate
           - entity: sensor.tesla_smart_charge_est_range_at_target_soc

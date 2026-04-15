@@ -121,6 +121,23 @@ class TeslaVehicleState:
 
 
 @dataclass
+class TariffMarketInsights:
+    """Synthetic market indicators derived from tariff slots."""
+
+    current_slot: TariffSlot | None = None
+    current_price: float | None = None
+    previous_price: float | None = None
+    delta_from_previous: float | None = None
+    delta_percent_from_previous: float | None = None
+    short_term_trend: str | None = None
+    next_low_slot: TariffSlot | None = None
+    next_low_window_start: datetime | None = None
+    next_low_window_end: datetime | None = None
+    relative_level: str | None = None
+    current_price_percentile: float | None = None
+
+
+@dataclass
 class TeslaSmartChargeInputs:
     """User inputs and preferences."""
 
@@ -164,6 +181,7 @@ class TeslaSmartChargeData:
     optimized_cost: float | None
     optimized_energy_kwh: float | None
     optimized_schedule: list[dict]
+    market_insights: TariffMarketInsights
 
 
 def get_device_info(entry: ConfigEntry) -> DeviceInfo:
@@ -393,6 +411,7 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
                 }
                 for slot in sorted(tariff_slots, key=lambda item: item.start)
             ]
+            market_insights = _analyze_tariff_market(tariff_slots, now)
 
             cheapest_slot = None
             if horizon_slots:
@@ -413,6 +432,7 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
                 optimized_cost=optimizer_result.total_cost,
                 optimized_energy_kwh=optimizer_result.total_energy_kwh,
                 optimized_schedule=optimizer_result.schedule,
+                market_insights=market_insights,
             )
         except Exception as err:
             raise UpdateFailed(str(err)) from err
@@ -847,8 +867,9 @@ class TeslaSmartChargeCoordinator(DataUpdateCoordinator[TeslaSmartChargeData]):
                 merged.setdefault(slot.start, slot)
 
         slots = sorted(merged.values(), key=lambda slot: slot.start)
-        # Keep the in-progress slot (end > now) so control can start charging immediately.
-        return [slot for slot in slots if slot.end > now and slot.start < horizon_end]
+        # Keep the full local-day context so analytics can compare against the previous slot.
+        # The optimizer still filters out past slots later on.
+        return [slot for slot in slots if slot.start < horizon_end]
 
     async def _async_fetch_tariff_from_spot_tomorrow(self) -> list[TariffSlot]:
         """Backward-compatible alias to raw rolling source."""
@@ -1301,6 +1322,198 @@ def _align_to_next_quarter(now: datetime) -> datetime:
     if aligned < now:
         aligned += timedelta(minutes=15)
     return aligned
+
+
+def _analyze_tariff_market(
+    slots: list[TariffSlot], now: datetime
+) -> TariffMarketInsights:
+    """Build synthetic market indicators from tariff slots."""
+
+    ordered = sorted(slots, key=lambda slot: slot.start)
+    if not ordered:
+        return TariffMarketInsights()
+
+    current_index = next(
+        (index for index, slot in enumerate(ordered) if slot.start <= now < slot.end),
+        None,
+    )
+    if current_index is None:
+        current_index = next(
+            (index for index, slot in enumerate(ordered) if slot.start > now),
+            None,
+        )
+    if current_index is None:
+        return TariffMarketInsights()
+
+    current_slot = ordered[current_index]
+    previous_slot = ordered[current_index - 1] if current_index > 0 else None
+    delta_from_previous = None
+    delta_percent_from_previous = None
+    if previous_slot is not None:
+        delta_from_previous = current_slot.price - previous_slot.price
+        if abs(previous_slot.price) > 1e-9:
+            delta_percent_from_previous = (delta_from_previous / previous_slot.price) * 100.0
+
+    short_term_trend = _classify_short_term_trend(ordered[current_index : current_index + 6])
+    (
+        next_low_slot,
+        next_low_window_start,
+        next_low_window_end,
+    ) = _find_next_significant_low(ordered, current_index)
+
+    day_slots = _select_reference_day_slots(ordered, current_slot.start)
+    reference_prices = [slot.price for slot in day_slots]
+    current_price_percentile = _calculate_price_percentile(
+        current_slot.price,
+        reference_prices,
+    )
+    relative_level = _classify_relative_price_level(current_price_percentile)
+
+    return TariffMarketInsights(
+        current_slot=current_slot,
+        current_price=current_slot.price,
+        previous_price=previous_slot.price if previous_slot else None,
+        delta_from_previous=delta_from_previous,
+        delta_percent_from_previous=delta_percent_from_previous,
+        short_term_trend=short_term_trend,
+        next_low_slot=next_low_slot,
+        next_low_window_start=next_low_window_start,
+        next_low_window_end=next_low_window_end,
+        relative_level=relative_level,
+        current_price_percentile=current_price_percentile,
+    )
+
+
+def _classify_short_term_trend(slots: list[TariffSlot]) -> str | None:
+    """Return a short-term market trend across several slots."""
+
+    if len(slots) < 3:
+        return None
+
+    prices = [slot.price for slot in slots]
+    spread = max(prices) - min(prices)
+    half = len(slots) // 2
+    if half <= 0:
+        return None
+
+    early_avg = sum(slot.price for slot in slots[:half]) / half
+    late_avg = sum(slot.price for slot in slots[-half:]) / half
+    delta = late_avg - early_avg
+    threshold = max(0.003, spread * 0.2)
+
+    if abs(delta) <= threshold:
+        return "stable"
+    return "up" if delta > 0 else "down"
+
+
+def _find_next_significant_low(
+    slots: list[TariffSlot], current_index: int
+) -> tuple[TariffSlot | None, datetime | None, datetime | None]:
+    """Return the next meaningful low window rather than the absolute minimum only."""
+
+    search_start = current_index + 1
+    if search_start >= len(slots):
+        return None, None, None
+
+    current_price = slots[current_index].price
+    future_slots = slots[search_start:]
+    future_prices = [slot.price for slot in future_slots]
+    min_future_price = min(future_prices)
+    combined_spread = max(future_prices + [current_price]) - min(future_prices + [current_price])
+    drop_threshold = max(0.008, combined_spread * 0.18)
+    local_tolerance = max(0.002, combined_spread * 0.08)
+    low_band_tolerance = max(0.003, combined_spread * 0.1)
+
+    candidate_index: int | None = None
+    for index in range(search_start, len(slots)):
+        slot = slots[index]
+        previous_price = slots[index - 1].price if index > 0 else slot.price
+        next_price = slots[index + 1].price if index + 1 < len(slots) else slot.price
+        is_local_low = (
+            slot.price <= previous_price + local_tolerance
+            and slot.price <= next_price + local_tolerance
+        )
+        is_significant = slot.price <= current_price - drop_threshold
+        if is_local_low and is_significant:
+            candidate_index = index
+            break
+
+    if candidate_index is None:
+        candidate_index = next(
+            (
+                index
+                for index in range(search_start, len(slots))
+                if slots[index].price <= min_future_price + low_band_tolerance
+            ),
+            None,
+        )
+
+    if candidate_index is None:
+        return None, None, None
+
+    candidate = slots[candidate_index]
+    start_index = candidate_index
+    end_index = candidate_index
+
+    while (
+        start_index - 1 >= search_start
+        and slots[start_index - 1].end == slots[start_index].start
+        and slots[start_index - 1].price <= candidate.price + low_band_tolerance
+    ):
+        start_index -= 1
+
+    while (
+        end_index + 1 < len(slots)
+        and slots[end_index].end == slots[end_index + 1].start
+        and slots[end_index + 1].price <= candidate.price + low_band_tolerance
+    ):
+        end_index += 1
+
+    return candidate, slots[start_index].start, slots[end_index].end
+
+
+def _select_reference_day_slots(
+    slots: list[TariffSlot], reference_time: datetime
+) -> list[TariffSlot]:
+    """Select the reference set used for relative price ranking."""
+
+    local_reference = dt_util.as_local(reference_time)
+    day_start = local_reference.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
+    same_day_slots = [
+        slot for slot in slots if day_start <= dt_util.as_local(slot.start) < day_end
+    ]
+    if len(same_day_slots) >= 4:
+        return same_day_slots
+    return slots
+
+
+def _calculate_price_percentile(value: float, prices: list[float]) -> float | None:
+    """Return the percentile rank of the current price within the reference set."""
+
+    if not prices:
+        return None
+
+    below = sum(1 for price in prices if price < value)
+    equal = sum(1 for price in prices if abs(price - value) < 1e-9)
+    percentile = ((below + (equal / 2.0)) / len(prices)) * 100.0
+    return round(percentile, 1)
+
+
+def _classify_relative_price_level(percentile: float | None) -> str | None:
+    """Map percentile rank to a user-friendly price band."""
+
+    if percentile is None:
+        return None
+    if percentile <= 10:
+        return "very_low"
+    if percentile <= 30:
+        return "low"
+    if percentile <= 70:
+        return "normal"
+    if percentile <= 90:
+        return "high"
+    return "very_high"
 
 
 def _normalize_sobry_prices(data: Any) -> list[dict[str, Any]]:
